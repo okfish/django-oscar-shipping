@@ -14,3 +14,6 @@ class SelfPickup(methods.Free):
     code = 'self-pickup'
     name = _('Self-service Pickup and shipping')
     description = _('Customers can pick up goods in the central store')
+    def calculate(self, basket, shipping_address=None):
+        # This method exists just to drop additional args
+        return super(SelfPickup, self).calculate(basket)
