@@ -18,6 +18,7 @@ Scale = loading.get_class('shipping.scales', 'Scale')
 
 
 DEFAULT_ORIGIN = u'Москва'
+DEFAULT_VOLUME = 1000 # for charge calculation if method requires but no attribute set for product
 API_ENABLED = ['pecom', 'emspost']
 API_AVAILABLE = {'pecom': _('PEC API ver. 1.0'), 
                  'emspost' :_('EMS Russian Post REST API'),
@@ -46,14 +47,38 @@ def get_enabled_api():
     #mods = api_modules_pool
     return [(a, API_AVAILABLE[a]) for a in (API_ENABLED and api_modules_pool.keys()) ]
 
+class ShippingCompanyManager(models.Manager):
+    def get_queryset(self):
+        """
+        Just return original queryset
+        """
+        return super(ShippingCompanyManager, self).get_queryset()
 
+class AvailableCompanyManager(ShippingCompanyManager):
+    
+    def get_queryset(self):
+        """
+        Filter out inactive methods (shipping companies with outdated contracts etc)
+        """
+        return super(AvailableCompanyManager, self).get_queryset().filter(is_active=True)
+    
+    def for_address(self, addr):
+        """
+        Prepopulate destination field with the given address 
+        for charge calculating
+        """
+        methods = self.get_queryset()
+        for m in methods:
+            m.set_destination(addr)
+        return methods
 
 class ShippingCompany(AbstractWeightBased):
     """Shipping methods based on cargo companies APIs.
     """ 
     size_attributes = ('width' , 'height', 'lenght')
-    default_volume = 1000
-    
+    default_volume = DEFAULT_VOLUME # basket (or item) volume for Packer if no dimentions defined for the product
+    destination = None # not stored field used for charge calculation
+                        
     api_user = models.CharField(_("API username"), max_length=64, blank=True)
     api_key = models.CharField(_("API key"), max_length=255, blank=True)
     api_type = models.CharField(verbose_name=_('API type'),
@@ -74,8 +99,13 @@ class ShippingCompany(AbstractWeightBased):
                                         verbose_name=_('Containers or boxes'),
                                         help_text=_('Containers or boxes could be used for packing')
                                         )
-
-    def calculate(self, basket, dest):
+    
+    objects = ShippingCompanyManager()
+    available = AvailableCompanyManager()
+        
+    def calculate(self, basket):
+        
+        charge = D('0.0')
         # Note, when weighing the basket, we don't check whether the item
         # requires shipping or not.  It is assumed that if something has a
         # weight, then it requires shipping.
@@ -86,21 +116,29 @@ class ShippingCompany(AbstractWeightBased):
         weight = scale.weigh_basket(basket)
         packs = packer.pack_basket(basket)  # Should be a list of pairs weight-container
         facade = api_modules_pool[self.api_type].ShippingFacade(self.api_user, self.api_key)
-        self.description = "%s Approximated shipping price for %s kg from %s to %s" % (self.description, weight, self.origin, dest.city)
+        if not self.destination: 
+            self.description += "ERROR! There is no shipping address for charge calculation!"
+        else:
+            self.description = "%s Approximating shipping price for %d kg from %s to %s" % (self.description, weight, self.origin, self.destination.city)
         #
-        charge = facade.get_charge(weight, packs, self.origin, dest)
+        charge = facade.get_charge(weight, packs, self.origin, self.destination)
 
         # Zero tax is assumed...
         return prices.Price(
             currency=basket.currency,
             excl_tax=charge,
             incl_tax=charge)
+    
+    def set_destination(self, addr):
+        self.destination = addr
         
     class Meta(AbstractWeightBased.Meta):
         abstract = False
         app_label = 'shipping'
         verbose_name = _("API-based Shipping Method")
         verbose_name_plural = _("API-based Shipping Methods")
+
+
 
 @python_2_unicode_compatible
 class ShippingContainer(models.Model):
