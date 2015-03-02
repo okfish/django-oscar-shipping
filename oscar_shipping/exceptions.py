@@ -38,8 +38,19 @@ class TooManyFoundError(FacadeError):
 
     Attributes:
         title -- title to find
-        errors -- extra info contains full API answer
+        results -- extra info contains full API answer
     """
-    def __init__(self, title, errors):
+    def __init__(self, title, results):
+        self.title = title
+        self.results = results
+        
+class CalculationError(FacadeError):
+    """Raised when pecom.calculate() returns hasError=True flag 
+        which indicates common calculation problems.
+    Attributes:
+        title -- title to find
+        errors -- extra info
+    """
+    def __init__(self, title, errors=None):
         self.title = title
         self.errors = errors

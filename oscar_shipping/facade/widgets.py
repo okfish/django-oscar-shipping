@@ -1,6 +1,7 @@
 from django.core.urlresolvers import reverse_lazy
+from django import forms
 
-from oscar.forms.widgets import RemoteSelect, MultipleRemoteSelect
+from oscar.forms.widgets import RemoteSelect
 
 class PecomCitySelect(RemoteSelect):
     """
@@ -8,3 +9,18 @@ class PecomCitySelect(RemoteSelect):
     
     """
     lookup_url = reverse_lazy('shipping:city-lookup', kwargs={'slug' : 'pek'})
+    
+    def __init__(self, *args, **kwargs):
+        if 'css' in kwargs:
+            self.css += " " + kwargs.pop('css')
+        super(PecomCitySelect, self).__init__(*args, **kwargs)
+        
+    class Media:
+        js = ('oscar_shipping/js/pecom_city_details.js', 
+              )        
+
+class PecomCityDetails(forms.RadioSelect):
+    
+    class Media:
+        js = ('oscar_shipping/js/pecom_city_details.js', 
+              )        

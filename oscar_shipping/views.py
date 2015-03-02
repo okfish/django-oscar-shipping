@@ -2,19 +2,28 @@
 import json
 import itertools
 
-
+from django.shortcuts import render
+from django.contrib import messages
 from django.core.cache import cache
-from django.http import HttpResponse
+from django.template.response import TemplateResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.generic.base import View
+from django.utils.translation import ugettext_lazy as _
 
 from oscar.core.loading import get_class, get_classes, get_model
 
 from .models import api_modules_pool
+from .packers import Packer
+from .exceptions import ( OriginCityNotFoundError, 
+                          CityNotFoundError, 
+                          ApiOfflineError, 
+                          TooManyFoundError, 
+                          CalculationError)
 
-#from oscar.apps.checkout.session import CheckoutSessionMixin
-CheckoutSessionMixin = get_class('checkout.session', 'CheckoutSessionMixin')
+from .checkout.session import CheckoutSessionMixin
+#CheckoutSessionMixin = get_class('checkout.session', 'CheckoutSessionMixin')
 Repository = get_class('shipping.repository', 'Repository')
-
+Scale = get_class('shipping.scales', 'Scale')
 
 def del_key(dict, key):
     """Delete a pair key-value from dict given 
@@ -52,7 +61,8 @@ class PecomCityLookupView(CheckoutSessionMixin, View):
         if not hasattr(self.method, 'api_type'):
             return []
         
-        facade = api_modules_pool[self.method.api_type].ShippingFacade(self.method.api_user, self.method.api_key)
+        facade = api_modules_pool[self.method.api_type].\
+                    ShippingFacade(self.method.api_user, self.method.api_key)
         qs = facade.get_all_branches()
         
         if not qs:
@@ -123,19 +133,6 @@ class PecomCityLookupView(CheckoutSessionMixin, View):
                 int(GET.get('page', 1)),
                 int(GET.get('page_limit', 20)))
 
-    def get_available_shipping_methods(self):
-        """
-        Returns all applicable shipping method objects for a given basket.
-        """
-        # Shipping methods can depend on the user, the contents of the basket
-        # and the shipping address (so we pass all these things to the
-        # repository).  I haven't come across a scenario that doesn't fit this
-        # system.
-        return Repository().get_shipping_methods(
-            basket=self.request.basket, user=self.request.user,
-            shipping_addr=self.get_shipping_address(self.request.basket),
-            request=self.request)
-
     def get(self, request, **kwargs):
         self.request = request
         method_code = kwargs['slug']
@@ -159,3 +156,67 @@ class PecomCityLookupView(CheckoutSessionMixin, View):
             'results': self.format_object(qs),
             'more': more,
         }), content_type='application/json')
+        
+class PecomDetailsView(CheckoutSessionMixin, View):
+    """
+    Returns rendered detailed shipping charge form.
+    Usage exapmle: 
+    /shipping/details/pek/?from=[ORIGIN_CODE]&to=[DESTINATION_CODE]
+    """
+    template = "oscar_shipping/partials/pecom_details_form.html"
+    def get_args(self):
+        GET = self.request.GET
+        return (GET.get('from', None),
+                GET.get('to', None))
+
+    def get(self, request, **kwargs):
+        self.request = request
+        method_code = kwargs['slug']
+        for m in self.get_available_shipping_methods():
+            if m.code == method_code:
+                method = m
+                
+        facade = api_modules_pool[method.api_type].ShippingFacade(method.api_user, method.api_key)
+        fromID, toID = self.get_args()
+        if not fromID or not toID:
+            return HttpResponseBadRequest()
+        
+        scale = Scale(attribute_code=method.weight_attribute,
+                      default_weight=method.default_weight)
+        packer = Packer(method.containers,
+                        attribute_codes=method.size_attributes,
+                        weight_code=method.weight_attribute)
+        weight = scale.weigh_basket(request.basket)
+        # Should be a list of dicts { 'weight': weight, 'container' : container }
+        packs = packer.pack_basket(request.basket)  
+        
+        options = []
+        try:
+            charges = facade.get_charges(weight, packs, fromID, toID)
+        except ApiOfflineError as e:
+            messages.error(request, _('Oops. API is offline right now. Sorry.'))
+            return render(request, 
+                          self.template, 
+                          { 'errors' : _('API is offline right now. Sorry. (%s)' % e.messages )} )
+        except CalculationError as e:
+            return render(request, 
+                          self.template, 
+                          { 'errors' : _('Calculator said: %s' % e.errors )} )
+        else:
+            for ch in charges['transfers']:
+                opt = {}
+                if not ch['hasError']:
+                    opt = {'id' : ch['transportingType'],
+                       'name' : "%s" % unicode(facade.get_transport_name(ch['transportingType'])), 
+                       'cost': ch['costTotal'], 
+                       #'errors' : '',
+                       'services' : ch['services'], 
+                       }
+                    options.append(opt)
+                else:
+                    messages.error(request, _('Oops. API said: %s' % ch['errorMessage'] ))
+                
+            form = facade.get_extra_form(options=options)
+            return render(request, 
+                          self.template, 
+                          { 'form' : form }, content_type="text/html" )

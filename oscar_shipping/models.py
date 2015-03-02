@@ -1,24 +1,37 @@
 # -*- coding: utf-8 -*-
 from decimal import Decimal as D
 
+import json
 import importlib
 
 from django.db import models
 from django.conf import settings
+from django.contrib import messages
+from django.utils.html import format_html_join
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ImproperlyConfigured
+from django.core.urlresolvers import reverse_lazy
+from django.template.loader import render_to_string
 
 from oscar.apps.shipping.abstract_models import AbstractWeightBased
 from oscar.core import prices, loading
 
 from .packers import Packer
+from .exceptions import ( OriginCityNotFoundError, 
+                          CityNotFoundError, 
+                          ApiOfflineError, 
+                          TooManyFoundError, 
+                          CalculationError)
+
+precision = D('.0000')
 
 Scale = loading.get_class('shipping.scales', 'Scale')
 
 
 DEFAULT_ORIGIN = u'Москва'
-DEFAULT_VOLUME = 1000 # for charge calculation if method requires but no attribute set for product
+
 API_ENABLED = ['pecom', 'emspost']
 API_AVAILABLE = {'pecom': _('PEC API ver. 1.0'), 
                  'emspost' :_('EMS Russian Post REST API'),
@@ -76,8 +89,11 @@ class ShippingCompany(AbstractWeightBased):
     """Shipping methods based on cargo companies APIs.
     """ 
     size_attributes = ('width' , 'height', 'lenght')
-    default_volume = DEFAULT_VOLUME # basket (or item) volume for Packer if no dimentions defined for the product
+
     destination = None # not stored field used for charge calculation
+    
+    errors = ''   # There is an issue with iterables and arrays as class properties and it scopes for class and instance
+    messages = '' # so just a one string messages per calculate() method call 
                         
     api_user = models.CharField(_("API username"), max_length=64, blank=True)
     api_key = models.CharField(_("API key"), max_length=255, blank=True)
@@ -102,27 +118,147 @@ class ShippingCompany(AbstractWeightBased):
     
     objects = ShippingCompanyManager()
     available = AvailableCompanyManager()
+
+    def __init__(self, *args, **kwargs):
+        super(ShippingCompany, self).__init__(*args, **kwargs)
+        self.facade = api_modules_pool[self.api_type].ShippingFacade(self.api_user, self.api_key)
         
-    def calculate(self, basket):
+    def calculate(self, basket, options=None):
         
+        results = []
         charge = D('0.0')
+        self.messages = ''
+        self.errors = ''
         # Note, when weighing the basket, we don't check whether the item
         # requires shipping or not.  It is assumed that if something has a
         # weight, then it requires shipping.
         scale = Scale(attribute_code=self.weight_attribute,
                       default_weight=self.default_weight)
-        packer = Packer(attribute_codes=self.size_attributes,
-                        default_volume=self.default_volume)
+        packer = Packer(self.containers,
+                        attribute_codes=self.size_attributes,
+                        weight_code=self.weight_attribute, 
+                        default_weight=self.default_weight)
         weight = scale.weigh_basket(basket)
-        packs = packer.pack_basket(basket)  # Should be a list of pairs weight-container
-        facade = api_modules_pool[self.api_type].ShippingFacade(self.api_user, self.api_key)
+        packs = packer.pack_basket(basket)  # Should be a list of dicts { 'weight': weight, 'container' : container }
+        facade = self.facade
         if not self.destination: 
-            self.description += "ERROR! There is no shipping address for charge calculation!"
+            self.errors+=_("ERROR! There is no shipping address for charge calculation!\n")
         else:
-            self.description = "%s Approximating shipping price for %d kg from %s to %s" % (self.description, weight, self.origin, self.destination.city)
-        #
-        charge = facade.get_charge(weight, packs, self.origin, self.destination)
+            self.messages+=_("""Approximated shipping price 
+                                for %d kg from %s to %s\n""") % (weight, 
+                                                              self.origin, 
+                                                              self.destination.city)
+            
+            # Assuming cases like http protocol suggests:
+            # e=200  - OK. Result contains charge value and extra info such as Branch code, etc
+            # e=404  - Result is empty, no destination found via API, redirect to address form or prompt to API city-codes selector
+            # e=503  - API is offline. Skip this method.
+            # e=300  - Too many choices found, Result contains list of charges-codes. Prompt to found dest-codes selector  
 
+            # an URL for AJAXed city-to-city charge lookup
+            details_url = reverse_lazy('shipping:charge-details', kwargs={'slug': self.code})
+            # an URL for AJAXed code by city lookup using Select2 widget
+            lookup_url=reverse_lazy('shipping:city-lookup', kwargs={'slug': self.code})
+            
+            # if options set make a short call to API for final calculation  
+            if options:
+                results, errors = facade.get_charge(options['senderCityId'], 
+                                                options['receiverCityId'],
+                                                packs)
+                if not errors:
+                    if 'hasError' in results.keys() and not results['hasError']:
+                        for r in results['transfers']:
+                            if r['transportingType'] == options['transportingType']:
+                                charge = D(r['costTotal'])
+                                #raise
+                    else:
+                        raise CalculationError("%s -> %s" % (options['senderCityId'], options['receiverCityId']), results['errorMessage'])
+                else:
+                    raise CalculationError("%s -> %s" % (options['senderCityId'], options['receiverCityId']), errors)
+            else:            
+                try:          
+                    results = facade.get_charges(weight, packs, self.origin, self.destination)
+                except ApiOfflineError:
+                    self.errors += _("%s API is offline. Cant calculate anything. Sorry!") % self.name
+                    self.messages = _("Please, choose another shipping method!")
+                except OriginCityNotFoundError as e: 
+                    # Paranoid mode as ImproperlyConfigured should be raised by facade
+                    self.errors += _("""City of origin '%s' not found 
+                                      in the shipping company postcodes to calculate charge.""") % e.title
+                    self.messages = _("""It seems like we couldnt find code for the city of origin (%s).
+                                        Please, select it manually, choose another address or another shipping method.
+                                    """) % e.title
+                except ImproperlyConfigured as e: # upraised error handling
+                    self.errors += "ImproperlyConfigured error (%s)" % e.message
+                    self.messages = "Please, select another shipping method or call site administrator!"
+                except CityNotFoundError as e: 
+                    self.errors += _("""Cant find destination city '%s' 
+                                      to calculate charge. Errors: %s""") % (e.title, e.errors)
+                    self.messages = _("""It seems like we cant find code for the city of destination (%s).
+                                        Please, select it manually, choose another address or another shipping method.
+                                    """) % e.title
+                    self.extra_form = facade.get_extra_form(origin=self.origin, 
+                                                            lookup_url=lookup_url)
+                except TooManyFoundError as e:
+                    self.errors += _("Found too many destinations for given city (%s)") % e.title
+                    self.messages = _("Please refine your shipping address")
+                    choices = []
+                    for r in e.results:
+                        choices.append((r[0], "%s (%s)" % (r[2], r[1]) ))
+                        
+                    self.extra_form = facade.get_extra_form(origin=self.origin, 
+                                                            choices=choices,
+                                                            details_url=details_url)
+                except CalculationError as e:
+                    self.errors += _("Error occured during charge calculation for given city (%s)") % e.title
+                    self.messages = _("API error was: %s") % e.errors
+                    self.extra_form = facade.get_extra_form(origin=self.origin,
+                                                            details_url=details_url,
+                                                            lookup_url=lookup_url)
+                else:
+                    if results is not None and len(results['transfers'])>0:
+                        origin_code = results['senderCityId']
+                        dest_code = results['receiverCityId']
+                        
+                        if len(results['transfers'])>0:
+                            options = []
+                            for ch in results['transfers']:
+                                opt = {}
+                                if not ch['hasError']:
+                                    opt = {'id' : ch['transportingType'],
+                                       'name' : "%s" % unicode(facade.get_transport_name(ch['transportingType'])), 
+                                       'cost': ch['costTotal'], 
+                                       #'errors' : '',
+                                       'services' : ch['services'], 
+                                       }
+                                    options.append(opt)
+                                else:
+                                    self.errors += ch['errorMessage']
+                                
+                            if len(options)>1:
+                                self.extra_form = facade.get_extra_form(options=options, 
+                                                                        full=True,
+                                                                        initial={ 'senderCityId': origin_code,
+                                                                                  'receiverCityId': dest_code,
+                                                                                 })
+                            else:
+                                charge = D(results['transfers'][0]['costTotal'])
+                                self.messages = u"""Ship by: %s from %s to %s. Brutto: %s kg. 
+                                                    Packs: <ul>%s</ul> """ % (
+                                                         facade.get_transport_name(results['transfers'][0]['transportingType']),
+                                                         self.origin, 
+                                                         self.destination.city , 
+                                                         weight, 
+                                                         format_html_join('\n', 
+                                                         u"<li>{0} ({1}kg , {2}m<sup>3</sup>)</li>", 
+                                                         ((p['container'].name, 
+                                                           p['weight'], 
+                                                           D(p['container'].volume).\
+                                                            quantize(precision)) for p in packs)))
+                
+                    else:
+                        self.errors += "Errors during facade.get_charges() method %s" % results
+        #raise
         # Zero tax is assumed...
         return prices.Price(
             currency=basket.currency,
@@ -147,13 +283,13 @@ class ShippingContainer(models.Model):
     image = models.ImageField(
         _("Image"), upload_to=settings.OSCAR_IMAGE_FOLDER, max_length=255, blank=True)
     height = models.DecimalField(
-        _("Height, cm"), decimal_places=3, max_digits=12,
+        _("Height, m"), decimal_places=3, max_digits=12,
         validators=[MinValueValidator(D('0.00'))])
     width = models.DecimalField(
-        _("Width, cm"), decimal_places=3, max_digits=12,
+        _("Width, m"), decimal_places=3, max_digits=12,
         validators=[MinValueValidator(D('0.00'))])
     lenght = models.DecimalField(
-        _("Lenght, cm"), decimal_places=3, max_digits=12,
+        _("Lenght, m"), decimal_places=3, max_digits=12,
         validators=[MinValueValidator(D('0.00'))])
     max_load = models.DecimalField(
         _("Max loading, kg"), decimal_places=3, max_digits=12,
@@ -161,7 +297,11 @@ class ShippingContainer(models.Model):
     
     def __str__(self):
         return self.name
-
+    
+    @property
+    def volume(self):
+        return self.height*self.width*self.lenght
+    
     class Meta():
         app_label = 'shipping'
         verbose_name = _("Shipping Container")
