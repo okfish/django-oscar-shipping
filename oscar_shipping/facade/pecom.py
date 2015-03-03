@@ -5,6 +5,7 @@ from decimal import Decimal as D
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import ugettext_lazy as _
+from django.utils.html import format_html_join
 
 from pecomsdk import pecom
 
@@ -190,3 +191,77 @@ class ShippingFacade():
 
     def get_transport_name(self, id):
         return PECOM_TRANSPORT_TYPES.get(id, '<unknown_transport_type>')
+    
+    def parse_results(self, results, **kwargs):
+        """
+            Parses results returned by get_charges() method.
+            Get some additional kwargs for detailed info or extra form.
+            Returns tuple (charge, messages, errors, extra_form)
+        """
+        origin_code = dest_code = None
+        extra_form = None
+        charge, messages, errors, extra_form = 0, '', '', None
+        
+        origin = kwargs.get('origin', '')
+        dest = kwargs.get('dest', '')
+        weight = kwargs.get('weight', 1)
+        packs = kwargs.get('packs', [])
+        options = kwargs.get('options', False)
+        
+        if options:
+            if 'hasError' in results.keys() and not results['hasError']:
+                for r in results['transfers']:
+                    if r['transportingType'] == options['transportingType']:
+                        messages = ''
+                        return D(r['costTotal']), messages, errors, None
+                        
+            else:
+                raise CalculationError("%s -> %s" % (options['senderCityId'], 
+                                                     options['receiverCityId']), 
+                                       results['errorMessage'])
+        
+        if results is not None and len(results['transfers'])>0:
+            origin_code = results['senderCityId']
+            dest_code = results['receiverCityId']
+            
+            if len(results['transfers'])>0:
+                options = []
+                for ch in results['transfers']:
+                    opt = {}
+                    if not ch['hasError']:
+                        opt = {'id' : ch['transportingType'],
+                           'name' : "%s" % unicode(self.get_transport_name(ch['transportingType'])), 
+                           'cost': ch['costTotal'], 
+                           #'errors' : '',
+                           'services' : ch['services'], 
+                           }
+                        options.append(opt)
+                    else:
+                        errors += ch['errorMessage']
+                    
+                if len(options)>1:
+                    extra_form = self.get_extra_form(options=options, 
+                                                     full=True,
+                                                     initial={ 'senderCityId': origin_code,
+                                                               'receiverCityId': dest_code,
+                                                              })
+                else:
+                    charge = D(results['transfers'][0]['costTotal'])
+                    messages = u"""Ship by: %s from %s to %s. Brutto: %s kg. 
+                                   Packs: <ul>%s</ul> """ % (
+                                 self.get_transport_name(results['transfers'][0]['transportingType']),
+                                 origin, 
+                                 dest.city , 
+                                 weight, 
+                                 format_html_join('\n', 
+                                 u"<li>{0} ({1}kg , {2}m<sup>3</sup>)</li>", 
+                                 ((p['container'].name, 
+                                   p['weight'], 
+                                   D(p['container'].volume).\
+                                    quantize(precision)) for p in packs)))
+
+        else:
+            errors += "Errors during facade.get_charges() method %s" % results
+        
+        
+        return charge, message, errors, extra_form

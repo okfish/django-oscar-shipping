@@ -166,13 +166,9 @@ class ShippingCompany(AbstractWeightBased):
                                                 options['receiverCityId'],
                                                 packs)
                 if not errors:
-                    if 'hasError' in results.keys() and not results['hasError']:
-                        for r in results['transfers']:
-                            if r['transportingType'] == options['transportingType']:
-                                charge = D(r['costTotal'])
-                                #raise
-                    else:
-                        raise CalculationError("%s -> %s" % (options['senderCityId'], options['receiverCityId']), results['errorMessage'])
+                    (charge, self.messages, 
+                     self.errors, self.extra_form) = facade.parse_results(results, 
+                                                                          options=options)
                 else:
                     raise CalculationError("%s -> %s" % (options['senderCityId'], options['receiverCityId']), errors)
             else:            
@@ -216,49 +212,14 @@ class ShippingCompany(AbstractWeightBased):
                                                             details_url=details_url,
                                                             lookup_url=lookup_url)
                 else:
-                    if results is not None and len(results['transfers'])>0:
-                        origin_code = results['senderCityId']
-                        dest_code = results['receiverCityId']
-                        
-                        if len(results['transfers'])>0:
-                            options = []
-                            for ch in results['transfers']:
-                                opt = {}
-                                if not ch['hasError']:
-                                    opt = {'id' : ch['transportingType'],
-                                       'name' : "%s" % unicode(facade.get_transport_name(ch['transportingType'])), 
-                                       'cost': ch['costTotal'], 
-                                       #'errors' : '',
-                                       'services' : ch['services'], 
-                                       }
-                                    options.append(opt)
-                                else:
-                                    self.errors += ch['errorMessage']
-                                
-                            if len(options)>1:
-                                self.extra_form = facade.get_extra_form(options=options, 
-                                                                        full=True,
-                                                                        initial={ 'senderCityId': origin_code,
-                                                                                  'receiverCityId': dest_code,
-                                                                                 })
-                            else:
-                                charge = D(results['transfers'][0]['costTotal'])
-                                self.messages = u"""Ship by: %s from %s to %s. Brutto: %s kg. 
-                                                    Packs: <ul>%s</ul> """ % (
-                                                         facade.get_transport_name(results['transfers'][0]['transportingType']),
-                                                         self.origin, 
-                                                         self.destination.city , 
-                                                         weight, 
-                                                         format_html_join('\n', 
-                                                         u"<li>{0} ({1}kg , {2}m<sup>3</sup>)</li>", 
-                                                         ((p['container'].name, 
-                                                           p['weight'], 
-                                                           D(p['container'].volume).\
-                                                            quantize(precision)) for p in packs)))
-                
-                    else:
-                        self.errors += "Errors during facade.get_charges() method %s" % results
-        #raise
+                  
+                    (charge, self.messages, 
+                     self.errors, self.extra_form) = facade.parse_results(results, 
+                                                                            origin=self.origin,
+                                                                            dest=self.destination,
+                                                                            weight=weight,
+                                                                            packs=packs)
+        
         # Zero tax is assumed...
         return prices.Price(
             currency=basket.currency,
