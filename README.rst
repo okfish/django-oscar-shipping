@@ -29,55 +29,60 @@ Install django-oscar-shipping::
 then add 'oscar_shipping' to the INSTALLED_APPS. From now you can override Oscar's shipping app
 using oscar_shipping within your project
 
-	e.g.::
+e.g.::
 
-	#apps/shipping/methods.py
+#apps/shipping/methods.py
 
-	from oscar_shipping.methods import SelfPickup
+from oscar_shipping.methods import SelfPickup
 
-	#apps/shipping/repository.py
-	
-	from oscar.apps.shipping import repository
+#apps/shipping/repository.py
 
-	from .methods import * 
-	from . import models
+from oscar.apps.shipping import repository
 
-	# Override shipping repository in order to provide our own
-	# custom methods
-	class Repository(repository.Repository):
-	    
-	    def get_available_shipping_methods(self, basket, user=None, shipping_addr=None, request=None, **kwargs):
-	        methods = [SelfPickup(),]
-	        #...
-	        methods.extend(list(models.ShippingCompany.objects.all().filter(is_active=True)))
-	        return methods
-	
-	#apps/shipping/models.py
-	
-	from oscar.apps.shipping import abstract_models
-	from oscar_shipping.models import * 
-	
-	#... your methods goes here
-	
-	from oscar.apps.shipping.models import *
+from .methods import * 
+from . import models
 
-	#apps/shipping/admin.py
-	
-	from oscar_shipping.admin import *
-	from oscar.apps.shipping.admin import *
+# Override shipping repository in order to provide our own
+# custom methods
+class Repository(repository.Repository):
+    
+    def get_available_shipping_methods(self, basket, user=None, shipping_addr=None, request=None, **kwargs):
+        methods = [SelfPickup(),]
+        #...
+        methods.extend(list(models.ShippingCompany.objects.all().filter(is_active=True)))
+        return methods
+
+#apps/shipping/models.py
+
+from oscar.apps.shipping import abstract_models
+from oscar_shipping.models import * 
+
+#... your methods goes here
+
+from oscar.apps.shipping.models import *
+
+#apps/shipping/admin.py
+
+from oscar_shipping.admin import *
+from oscar.apps.shipping.admin import *
 
 Dependencies
 ------------
 
 Install pecomsdk if you would like enable pecom shipping facade::
 
-	pip install -e git+https://github.com/okfish/pecomsdk.git#egg=pecomsdk
+	pip install -e git+https://github.com/okfish/pecomsdk/pecomsdk.git#egg=pecomsdk
+
+Install py-emspost-api if you would like enable ems shipping facade::
+
+	pip install -e git+https://github.com/okfish/py-emspost-api/py-emspost-api.git#egg=py-emspost-api
+
 
 Features
 --------
 * SelfPickup() shipping method. Simply inherited from methods.Free and renamed.
 * Easy customisable facades for different APIs
-* Facade to the Russian Post EMS
+* Facade to the Russian Post EMS using py-emspost-api package
 * Facade to the PEC (Pervaya Ekspeditsionnaya Kompania) using pecomsdk package
 * Models for shipping companies and containers for packing and shipping cost calculation 
 * Packer module assumes Bin Packing Problem can be solved in different ways: using own algorithms or via external APIs
