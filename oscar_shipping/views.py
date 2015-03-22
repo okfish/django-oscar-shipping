@@ -25,15 +25,7 @@ from .checkout.session import CheckoutSessionMixin
 Repository = get_class('shipping.repository', 'Repository')
 Scale = get_class('shipping.scales', 'Scale')
 
-def del_key(dict, key):
-    """Delete a pair key-value from dict given 
-    """
-    for k in list(dict.keys()):
-        if k == key:
-            del dict[k]
-
-
-class PecomCityLookupView(CheckoutSessionMixin, View):
+class CityLookupView(CheckoutSessionMixin, View):
     """JSON lookup view for objects retrieved via REST API.
         Returns select2 compatible list.
     """
@@ -42,7 +34,7 @@ class PecomCityLookupView(CheckoutSessionMixin, View):
             Attemp to mimic django's queryset.filter() for simple lists
             proudly stolen from http://stackoverflow.com/a/1215039
             Usage:
-                list(filter_data(test_data, lambda k, v: k == "key1" and v == "value1"))
+                list(self.filter(test_data, lambda k, v: k == "key1" and v == "value1"))
         """
         for d in data:
              for k, v in d.items():
@@ -50,65 +42,29 @@ class PecomCityLookupView(CheckoutSessionMixin, View):
                         yield d
     
     def get_queryset(self):
-        """Return normalized queryset-like list of dicts
+        """ Return normalized queryset-like list of dicts
+            { 'id' : <city code>, 'branch' : <branch title>, 'text': <city title> }
         """
         n_qs = []
-        branch_title = ''
-        branch_id = ''
-        qs = []
-        
         # Skip all not api-based methods
         if not hasattr(self.method, 'api_type'):
             return []
         
-        facade = api_modules_pool[self.method.api_type].\
+        self.facade = api_modules_pool[self.method.api_type].\
                     ShippingFacade(self.method.api_user, self.method.api_key)
-        qs = facade.get_all_branches()
-        
-        if not qs:
-            return []
+        return self.facade.get_queryset()
          
-        for item in qs:
-            branch_title = item['title']
-            branch_id = item['bitrixId']
-            n_qs.append({'id' : branch_id,
-                             'branch' : branch_title,
-                             'text' : branch_title,
-                                      })
-            for c in item['cities']:
-                city_id = c.get('bitrixId', None)
-                # Retreive only cities with ID
-                if city_id:
-                    n_qs.append({'id' : city_id,
-                             'branch' : branch_title,
-                             'text' : c['title'],
-                                      })
-        return n_qs
 
     def format_object(self, qs):
-        """ Prepare data for select2 grouped option list.
-            Return smth like 
+        """ Prepare data for select2 option list.
+            Should return smth like 
                 [{ 'text' : <branch_name>, 
                   'children' : { 'id' : <city_id>, 
                               'text' : <city_name> } 
                   ...
                 },...]
         """
-        res = []
-        chld = [] 
-        # Sort list of dicts by 'branch' field
-        key = lambda k: k['branch']
-        qs = sorted(qs, key=key)
-        # Group it by 'branch' field
-        for k, g in itertools.groupby(qs, key ):
-            chld = list(g)
-            # Remove unnec data
-            for c in chld:
-                del_key(c, 'branch')
-            res.append({'text' : "branch: %s" % k, 
-                        'children' : chld,
-                       })
-        return res
+        return self.facade.format_objects(qs)
 
     def initial_filter(self, qs, value):
         return self.filter(qs, lambda k, v: k == "id" and v in value.split(','))
@@ -157,40 +113,53 @@ class PecomCityLookupView(CheckoutSessionMixin, View):
             'more': more,
         }), content_type='application/json')
         
-class PecomDetailsView(CheckoutSessionMixin, View):
+class ShippingDetailsView(CheckoutSessionMixin, View):
     """
     Returns rendered detailed shipping charge form.
     Usage exapmle: 
     /shipping/details/pek/?from=[ORIGIN_CODE]&to=[DESTINATION_CODE]
     """
-    template = "oscar_shipping/partials/pecom_details_form.html"
+    # TODO: replace static field with get_template() 
+    # method for easier customising
+    template = "oscar_shipping/partials/details_form.html"
     def get_args(self):
         GET = self.request.GET
         return (GET.get('from', None),
                 GET.get('to', None))
 
     def get(self, request, **kwargs):
+        ctx = {}
+        method = None
+        origin = None
+        dest = None
         self.request = request
+        ctx['basket'] = request.basket
         method_code = kwargs['slug']
         for m in self.get_available_shipping_methods():
             if m.code == method_code:
                 method = m
-                
+                ctx['method'] = method_code
+        if not method:
+            return HttpResponseBadRequest('Bad shipping method code!')
         facade = api_modules_pool[method.api_type].ShippingFacade(method.api_user, method.api_key)
         fromID, toID = self.get_args()
         if not fromID or not toID:
-            return HttpResponseBadRequest()
-        
+            return HttpResponseBadRequest('Required parameters not found in the query string!')
+        origin = facade.get_by_code(fromID)
+        dest = facade.get_by_code(toID)
+       
         scale = Scale(attribute_code=method.weight_attribute,
                       default_weight=method.default_weight)
         packer = Packer(method.containers,
                         attribute_codes=method.size_attributes,
-                        weight_code=method.weight_attribute)
+                        weight_code=method.weight_attribute,
+                        default_weight=method.default_weight)
         weight = scale.weigh_basket(request.basket)
         # Should be a list of dicts { 'weight': weight, 'container' : container }
         packs = packer.pack_basket(request.basket)  
         
         options = []
+        
         try:
             charges = facade.get_charges(weight, packs, fromID, toID)
         except ApiOfflineError as e:
@@ -203,20 +172,17 @@ class PecomDetailsView(CheckoutSessionMixin, View):
                           self.template, 
                           { 'errors' : _('Calculator said: %s' % e.errors )} )
         else:
-            for ch in charges['transfers']:
-                opt = {}
-                if not ch['hasError']:
-                    opt = {'id' : ch['transportingType'],
-                       'name' : "%s" % unicode(facade.get_transport_name(ch['transportingType'])), 
-                       'cost': ch['costTotal'], 
-                       #'errors' : '',
-                       'services' : ch['services'], 
-                       }
-                    options.append(opt)
-                else:
-                    messages.error(request, _('Oops. API said: %s' % ch['errorMessage'] ))
-                
-            form = facade.get_extra_form(options=options)
+            charge, messages, errors, extra_form = facade.parse_results(charges, 
+                                                                        origin=origin,
+                                                                        dest=dest,
+                                                                        weight=weight,
+                                                                        packs=packs)
+            if extra_form:
+                ctx['form'] = extra_form 
+            else:
+                ctx['charge'] = charge
+                ctx['messages'] = messages
+                ctx['errors'] = errors
             return render(request, 
-                          self.template, 
-                          { 'form' : form }, content_type="text/html" )
+                              self.template, 
+                              ctx, content_type="text/html" )

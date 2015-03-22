@@ -1,0 +1,41 @@
+{% load i18n %}
+{% load currency_filters %}
+
+<div class="shipping-details-form">
+{% if errors %}
+ <div class="alert alert-danger">
+        <strong>{% trans "Oops! We found some errors:" %}</strong> 
+        {{ errors|safe }}
+    </div>
+{% endif %}
+{% if messages %}
+ <div class="alert-info">
+        <span class="help-block"><i class="icon-exclamation-sign"></i> {{ messages|safe }}</span>
+    </div>
+{% endif %}
+{% if charge %}
+ <div class="shipping-charge-{{ method }}">
+        {{ charge|currency:basket.currency }}
+    </div>
+{% endif %}
+
+{% if form %}
+	{% if form.is_bound and not form.is_valid %}
+	    <div class="alert alert-danger">
+	        <strong>{% trans "Oops! We found some errors" %}</strong> - {% trans "please check the error messages below and try again" %}
+	    </div>
+	{% endif %}
+	
+	{% if form.non_field_errors %}
+	    {% for error in form.non_field_errors %}
+	        <div class="alert alert-danger form-group error">
+	            <span class="help-block"><i class="icon-exclamation-sign"></i> {{ error }}</span>
+	        </div>
+	    {% endfor %}
+	{% endif %}
+	
+	{% for field in form %}
+	    {% include 'oscar_shipping/partials/form_field.html' with field=field style=style %}
+	{% endfor %}
+	</div>
+{% endif %}

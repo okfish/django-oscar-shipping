@@ -121,7 +121,8 @@ class ShippingCompany(AbstractWeightBased):
 
     def __init__(self, *args, **kwargs):
         super(ShippingCompany, self).__init__(*args, **kwargs)
-        self.facade = api_modules_pool[self.api_type].ShippingFacade(self.api_user, self.api_key)
+        if self.api_type:
+            self.facade = api_modules_pool[self.api_type].ShippingFacade(self.api_user, self.api_key)
         
     def calculate(self, basket, options=None):
         
@@ -162,15 +163,24 @@ class ShippingCompany(AbstractWeightBased):
             
             # if options set make a short call to API for final calculation  
             if options:
-                results, errors = facade.get_charge(options['senderCityId'], 
+                errors = None
+                try:
+                    results, errors = facade.get_charge(options['senderCityId'], 
                                                 options['receiverCityId'],
                                                 packs)
+                except CalculationError as e:
+                    self.errors = "Post-calculation error: %s" % e.errors
+                    self.messages = e.title
+                except:
+                    raise
                 if not errors:
                     (charge, self.messages, 
                      self.errors, self.extra_form) = facade.parse_results(results, 
                                                                           options=options)
                 else:
-                    raise CalculationError("%s -> %s" % (options['senderCityId'], options['receiverCityId']), errors)
+                    raise CalculationError("%s -> %s" % (options['senderCityId'], 
+                                                         options['receiverCityId']), 
+                                           errors)
             else:            
                 try:          
                     results = facade.get_charges(weight, packs, self.origin, self.destination)
@@ -194,16 +204,13 @@ class ShippingCompany(AbstractWeightBased):
                                         Please, select it manually, choose another address or another shipping method.
                                     """) % e.title
                     self.extra_form = facade.get_extra_form(origin=self.origin, 
-                                                            lookup_url=lookup_url)
+                                                            lookup_url=lookup_url,
+                                                            details_url=details_url)
                 except TooManyFoundError as e:
                     self.errors += _("Found too many destinations for given city (%s)") % e.title
                     self.messages = _("Please refine your shipping address")
-                    choices = []
-                    for r in e.results:
-                        choices.append((r[0], "%s (%s)" % (r[2], r[1]) ))
-                        
                     self.extra_form = facade.get_extra_form(origin=self.origin, 
-                                                            choices=choices,
+                                                            choices=e.results,
                                                             details_url=details_url)
                 except CalculationError as e:
                     self.errors += _("Error occured during charge calculation for given city (%s)") % e.title
@@ -211,6 +218,8 @@ class ShippingCompany(AbstractWeightBased):
                     self.extra_form = facade.get_extra_form(origin=self.origin,
                                                             details_url=details_url,
                                                             lookup_url=lookup_url)
+                except:
+                    raise
                 else:
                   
                     (charge, self.messages, 

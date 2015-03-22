@@ -1,19 +1,22 @@
 $(document).ready(function() {
-	function remove_form(){
-		var details_div = $('.shipping-details-form');
+	function remove_form(obj){
+		var details_div = obj.closest('form').find('.shipping-details-form');
 		if (details_div) {
-			details_div.fadeOut(1000);
+			details_div.fadeOut(10000);
 			details_div.remove();	
 		}
 	}
-    // bind classes select2 single-city-selector' onchange event 
-    $('.city-selector, .single-city-selector').on('change', function(){
-			remove_form();
+	
+	function ajax_handler(event){
+		// event.handled intended to prevent firing handler multiple times
+		// see http://sholsinger.com/2011/08/prevent-jquery-live-handlers-from-firing-multiple-times/
+		if (event.handled !== true){
+			remove_form($(this));
 			$.ajax({ 
 				    type: $(this).attr('method'), 
 				    url: $(this).data('lookup-url'),
 				    beforeSend: function() { 
-				    	$(this).after('<div id="wait">calulating...</div>');
+				    	$(this).after('<div id="wait">calculating...</div>');
 				    },
         			complete: function() { 
         				$('#wait').remove();
@@ -25,13 +28,13 @@ $(document).ready(function() {
 				        $(this).after(data);
 				    }
 			});
-			return false;            		
-    }); 
-            	
-            //$(document).on('change', '.city-selector', function(){
-			//	remove_form(); 
-			//	do_ajax();
-			//	return false;
-			//});		
+			event.handled = true;
+		}
+		return false;            		
+    }
+    // bind classes select2 single-city-selector' onchange event 
+    $('.city-selector, .single-city-selector')
+    .change(ajax_handler); 
+		
 }); 
 

@@ -70,3 +70,41 @@ class PecomCalcForm(BasePecomForm):
                                                                 choices=options, 
                                                                 widget=RadioSelect,
                                                                 required=True)
+
+class EmsCalcForm(forms.Form):
+    senderCityId = forms.CharField(widget=forms.HiddenInput)
+    receiverCityId = forms.CharField(widget=forms.HiddenInput)
+
+    def __init__(self, *args, **kwargs):
+        lookup_url = None
+        choices = None
+        options = None
+        details_url = reverse_lazy('shipping:charge-details', kwargs={'slug':'ems'})
+
+        if 'details_url' in kwargs.keys():
+            details_url = kwargs.pop('details_url')
+        if 'lookup_url' in kwargs.keys():
+            lookup_url = kwargs.pop('lookup_url')  
+        if 'choices' in kwargs.keys():
+            choices = kwargs.pop('choices')            
+        if 'options' in kwargs.keys():
+            options = kwargs.pop('options')
+
+        super(EmsCalcForm, self).__init__(*args, **kwargs)
+
+        if lookup_url:
+            # single city selector
+            self.fields['receiverCityId'] = forms.ChoiceField(label=_("Destination city"), 
+                                              widget=PecomCitySelect(lookup_url=lookup_url,
+                                                             css='single-city-selector',
+                                                             attrs={'data-lookup-url' : details_url,
+                                                                }))
+        if choices:
+            # choose between found cities
+            self.fields['receiverCityId'] = forms.ChoiceField(label=_("Destination city"),
+                                                              choices=choices, 
+                                                              widget=PecomCityDetails(attrs={'class' : 'city-selector',
+                                                                                        'data-lookup-url' : details_url,
+                                                                                        }))
+            
+        
