@@ -3,6 +3,7 @@ from decimal import Decimal as D
 from oscar.apps.checkout.session import CheckoutSessionMixin as CoreCheckoutSessionMixin
 from oscar.core.loading import get_class
 
+#CoreCheckoutSessionMixin = get_class('checkout.session', 'CheckoutSessionMixin')
 Repository = get_class('shipping.repository', 'Repository')
 
 class CheckoutSessionMixin(CoreCheckoutSessionMixin):
@@ -23,22 +24,28 @@ class CheckoutSessionMixin(CoreCheckoutSessionMixin):
             shipping_addr=self.get_shipping_address(self.request.basket),
             request=self.request)
 
-    def get_shipping_kwargs(self, basket, shipping_address):
+    def get_shipping_kwargs(self):
         return self.checkout_session._get('shipping', 'options')
-
-    def skip_unless_payment_is_required(self, request):
-        # Check to see if payment is actually required for this order.
-        shipping_address = self.get_shipping_address(request.basket)
+    
+    def get_shipping_charge(self, basket):
+        shipping_charge = D('0.00')
+        shipping_address = self.get_shipping_address(basket)
         shipping_method = self.get_shipping_method(
-            request.basket, shipping_address)
+            basket, shipping_address)
         if shipping_method:
-            shipping_kwargs = self.get_shipping_kwargs(request.basket, shipping_address)
-            shipping_charge = shipping_method.calculate(request.basket, shipping_kwargs or None)
+            shipping_kwargs = self.get_shipping_kwargs()
+            shipping_charge = shipping_method.calculate(basket, shipping_kwargs or None)
         else:
             # It's unusual to get here as a shipping method should be set by
             # the time this skip-condition is called. In the absence of any
             # other evidence, we assume the shipping charge is zero.
             shipping_charge = D('0.00')
+        return shipping_charge
+
+    def skip_unless_payment_is_required(self, request):
+        # Check to see if payment is actually required for this order.
+        
+        shipping_charge = self.get_shipping_charge(request.basket)
         total = self.get_order_totals(request.basket, shipping_charge)
         
         if total.excl_tax == D('0.00'):
@@ -63,7 +70,7 @@ class CheckoutSessionMixin(CoreCheckoutSessionMixin):
         if not shipping_method:
             total = shipping_charge = None
         else:
-            shipping_kwargs = self.get_shipping_kwargs(basket, shipping_address)
+            shipping_kwargs = self.get_shipping_kwargs()
 #             if shipping_kwargs:
 #                 shipping_charge = shipping_method.calculate(basket, shipping_kwargs)
 #             else:
