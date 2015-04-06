@@ -8,7 +8,7 @@ from oscar.core.loading import get_class
 from .session import CheckoutSessionMixin
 #CheckoutSessionMixin = get_class('checkout.session', 'CheckoutSessionMixin')
 
-class ShippingMethodView(CheckoutSessionMixin, views.ShippingMethodView):
+class ShippingMethodView(views.ShippingMethodView):
     """
     View for a user to choose which shipping method(s) they want to use.
     """
@@ -44,7 +44,7 @@ class ShippingMethodView(CheckoutSessionMixin, views.ShippingMethodView):
             
         return self.get_success_response()
     
-class PaymentMethodView(CheckoutSessionMixin, views.PaymentMethodView):
+class PaymentMethodView(views.PaymentMethodView):
     pass
-class PaymentDetailsView(CheckoutSessionMixin, views.PaymentDetailsView):
+class PaymentDetailsView(views.PaymentDetailsView):
     pass
