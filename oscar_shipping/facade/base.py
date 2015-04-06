@@ -38,7 +38,7 @@ class AbstractShippingFacade(object):
                 return origin_code[cache_key]
             else:
                 raise ImproperlyConfigured("It seems like origin point '%s'"
-                                           "coudn't be validated for the method" % origin)  
+                                           "coudn't be validated for the method. Errors: %s" % (origin, error))  
 
     def get_cached_codes(self, city):
         errors = False
