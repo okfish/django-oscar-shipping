@@ -1,5 +1,6 @@
 from decimal import Decimal as D
 
+from oscar.core import prices
 from oscar.apps.checkout.session import CheckoutSessionMixin as CoreCheckoutSessionMixin
 from oscar.core.loading import get_class
 
@@ -40,7 +41,10 @@ class CheckoutSessionMixin(CoreCheckoutSessionMixin):
             # the time this skip-condition is called. In the absence of any
             # other evidence, we assume the shipping charge is zero.
             shipping_charge = D('0.00')
-        return shipping_charge
+        return prices.Price(
+            currency=basket.currency,
+            excl_tax=shipping_charge,
+            incl_tax=shipping_charge)
 
     def skip_unless_payment_is_required(self, request):
         # Check to see if payment is actually required for this order.
