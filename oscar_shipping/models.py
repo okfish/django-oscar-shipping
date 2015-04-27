@@ -221,7 +221,6 @@ class ShippingCompany(AbstractWeightBased):
                 except:
                     raise
                 else:
-                  
                     (charge, self.messages, 
                      self.errors, self.extra_form) = facade.parse_results(results, 
                                                                             origin=self.origin,

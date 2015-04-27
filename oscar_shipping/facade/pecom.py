@@ -191,7 +191,6 @@ class ShippingFacade(AbstractShippingFacade):
             Returns tuple (charge, messages, errors, extra_form)
         """
         origin_code = dest_code = None
-        extra_form = None
         charge, messages, errors, extra_form = 0, '', '', None
         
         origin = kwargs.get('origin', '')
@@ -240,10 +239,11 @@ class ShippingFacade(AbstractShippingFacade):
                                                                'receiverCityId': dest_code,
                                                               })
                 else:
+                    tr_code = results['transfers'][0]['transportingType']
                     charge = D(results['transfers'][0]['costTotal'])
                     messages = u"""Ship by: %s from %s to %s. Brutto: %s kg. 
                                    Packs: <ul>%s</ul> """ % (
-                                 self.get_transport_name(results['transfers'][0]['transportingType']),
+                                 self.get_transport_name(tr_code),
                                  origin, 
                                  dest, 
                                  weight, 
@@ -253,6 +253,10 @@ class ShippingFacade(AbstractShippingFacade):
                                    p['weight'], 
                                    D(p['container'].volume).\
                                     quantize(precision)) for p in packs)))
+                    extra_form = self.get_extra_form(initial={ 'senderCityId': origin_code,
+                                                               'receiverCityId': dest_code,
+                                                               'transportingType': tr_code,
+                                                              })
 
         else:
             errors += "Errors during facade.get_charges() method %s" % results

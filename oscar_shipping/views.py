@@ -177,7 +177,7 @@ class ShippingDetailsView(CheckoutSessionMixin, View):
                                                                         dest=dest,
                                                                         weight=weight,
                                                                         packs=packs)
-            if extra_form:
+            if extra_form and not messages:
                 ctx['form'] = extra_form 
             else:
                 ctx['charge'] = charge

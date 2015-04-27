@@ -72,11 +72,14 @@ class ShippingFacade(AbstractShippingFacade):
             options['weight'] += float(pack['weight'])
         
         res, errors = self.api.calculate(options)
+        
         if 'rsp' in res.keys() :
             if not res['rsp']['stat'] == 'ok':
                 raise CalculationError("%s(%s)" % (origin, dest), 
                                        res['rsp']['err'])        
             else:
+                res['rsp']['senderCityId'] = origin
+                res['rsp']['receiverCityId'] = dest
                 return res['rsp'], False
         else:
             errors = "No answer from API. Result was: %s" % res
@@ -119,20 +122,21 @@ class ShippingFacade(AbstractShippingFacade):
         If no initial data present return simple calc form with origin predefined
         If data given instantiate the choice form.   
         """
-        origin_code = None
+        origin_code = dest_code = None
         choices = []
         
         if 'choices' in kwargs.keys():
             for r in kwargs['choices']:
                 choices.append((r[0], r[1]))
         kwargs['choices'] = choices
-                
+                    
         if 'origin' in kwargs.keys():
             origin_code = self.get_cached_origin_code(kwargs.pop('origin'))
             if not 'initial' in kwargs.keys():
                 kwargs['initial'] = { 'senderCityId': origin_code }
             else:
-                kwargs['initial'].update({ 'senderCityId': origin_code }) 
+                kwargs['initial'].update({ 'senderCityId': origin_code })
+
         # Return simple calculator form if no choices given: 
         # assuming entered city not found in branches 
         try:
@@ -148,7 +152,6 @@ class ShippingFacade(AbstractShippingFacade):
             Returns tuple (charge, messages, errors, extra_form)
         """
         origin_code = dest_code = None
-        extra_form = None
         charge, messages, errors, extra_form = 0, '', '', None
         
         origin = kwargs.get('origin', '')
@@ -160,8 +163,8 @@ class ShippingFacade(AbstractShippingFacade):
         options = kwargs.get('options', False)
 
         if results and results['price']>0:
-            #origin_code = results['senderCityId']
-            #dest_code = results['receiverCityId']
+            origin_code = results['senderCityId']
+            dest_code = results['receiverCityId']
             charge = D(results['price'])
 
             messages = u"""From %s to %s. Brutto: %s kg.
@@ -174,6 +177,8 @@ class ShippingFacade(AbstractShippingFacade):
                                                    p['weight'], 
                                                    D(p['container'].volume).\
                                                     quantize(precision)) for p in packs)))
+            extra_form = self.get_extra_form(initial={'senderCityId': origin_code,
+                                                      'receiverCityId': dest_code, })
             if 'term' in results.keys():
                 term = (results['term']['min'], results['term']['max'])
                 messages += u"Delivery time: %s to %s days." % (term[0], term[1])
