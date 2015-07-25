@@ -9,7 +9,7 @@ class PecomCitySelect(RemoteSelect):
     
     """
     lookup_url = reverse_lazy('shipping:city-lookup', kwargs={'slug' : 'pek'})
-    
+    css = ''
     def __init__(self, *args, **kwargs):
         if 'css' in kwargs:
             self.css += " " + kwargs.pop('css')
