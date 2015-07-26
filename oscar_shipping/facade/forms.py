@@ -37,8 +37,9 @@ class PecomCalcForm(BasePecomForm):
             # single city selector
             self.fields['receiverCityId'] = forms.ChoiceField(label=_("Destination city"), 
                                               widget=PecomCitySelect(lookup_url=lookup_url,
-                                                             css='single-city-selector',
                                                              attrs={'data-lookup-url' : details_url,
+                                                                    'class' : 'select2 single-city-selector',
+                                                                    'style' : 'width:100%;',       
                                                                 }))
         if choices:
             # choose between found cities
@@ -96,14 +97,15 @@ class EmsCalcForm(forms.Form):
             # single city selector
             self.fields['receiverCityId'] = forms.ChoiceField(label=_("Destination city"), 
                                               widget=PecomCitySelect(lookup_url=lookup_url,
-                                                             css='single-city-selector',
                                                              attrs={'data-lookup-url' : details_url,
+                                                                    'class' : 'select2 single-city-selector',
+                                                                    'style' : 'width:100%;',
                                                                 }))
         if choices:
             # choose between found cities
             self.fields['receiverCityId'] = forms.ChoiceField(label=_("Destination city"),
                                                               choices=choices, 
-                                                              widget=PecomCityDetails(attrs={'class' : 'city-selector',
+                                                              widget=PecomCityDetails(attrs={'class' : 'select2 city-selector',
                                                                                         'data-lookup-url' : details_url,
                                                                                         }))
             
