@@ -1,0 +1,292 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2015-09-17 19:55+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: checkout/views.py:25
+msgid "Your submitted shipping method is not permitted"
+msgstr ""
+
+#: checkout/views.py:39
+#, python-format
+msgid "Shipping method %s selected"
+msgstr ""
+
+#: facade/emspost.py:24
+msgid "Russian Cities"
+msgstr ""
+
+#: facade/emspost.py:25
+msgid "Regions of Russia"
+msgstr ""
+
+#: facade/emspost.py:26
+msgid "All Russian Regions and Cities"
+msgstr ""
+
+#: facade/emspost.py:27
+msgid "Foreign Countries"
+msgstr ""
+
+#: facade/emspost.py:92
+msgid "Sorry. EMS API is offline right now"
+msgstr ""
+
+#: facade/forms.py:38 facade/forms.py:47 facade/forms.py:98
+#: facade/forms.py:106
+msgid "Destination city"
+msgstr ""
+
+#: facade/forms.py:57
+#, python-format
+msgid "%s: %s RUR. Including: <ul>%s</ul>"
+msgstr ""
+
+#: facade/forms.py:69
+msgid "Type of transportation"
+msgstr ""
+
+#: facade/forms.py:70
+msgid "Please choose the transportation type"
+msgstr ""
+
+#: facade/pecom.py:23
+msgid "Auto"
+msgstr ""
+
+#: facade/pecom.py:24
+msgid "Avia"
+msgstr ""
+
+#: facade/pecom.py:315
+#, python-format
+msgid "Branch: %s"
+msgstr ""
+
+#: methods.py:15
+msgid "Self-service Pickup and shipping"
+msgstr ""
+
+#: methods.py:16
+msgid "Customers can pick up goods in the central store"
+msgstr ""
+
+#: models.py:36
+msgid "PEC API ver. 1.0"
+msgstr ""
+
+#: models.py:37
+msgid "EMS Russian Post REST API"
+msgstr ""
+
+#: models.py:38
+msgid "DHL API (not ready yet)"
+msgstr ""
+
+#: models.py:39
+msgid "USPS API (not ready yet)"
+msgstr ""
+
+#: models.py:43
+msgid "Online"
+msgstr ""
+
+#: models.py:44
+msgid "Offline"
+msgstr ""
+
+#: models.py:45
+msgid "Disabled"
+msgstr ""
+
+#: models.py:98
+msgid "API username"
+msgstr ""
+
+#: models.py:99
+msgid "API key"
+msgstr ""
+
+#: models.py:100
+msgid "API type"
+msgstr ""
+
+#: models.py:104
+msgid "City of origin"
+msgstr ""
+
+#: models.py:105
+msgid "active"
+msgstr ""
+
+#: models.py:106
+msgid "Use this method in checkout?"
+msgstr ""
+
+#: models.py:107
+msgid "status"
+msgstr ""
+
+#: models.py:115
+msgid "Containers or boxes"
+msgstr ""
+
+#: models.py:116
+msgid "Containers or boxes could be used for packing"
+msgstr ""
+
+#: models.py:146
+msgid "ERROR! There is no shipping address for charge calculation!\n"
+msgstr ""
+
+#: models.py:148
+#, python-format
+msgid ""
+"Approximated shipping price \n"
+"                                for %d kg from %s to %s\n"
+msgstr ""
+
+#: models.py:188
+#, python-format
+msgid "%s API is offline. Cant calculate anything. Sorry!"
+msgstr ""
+
+#: models.py:189
+msgid "Please, choose another shipping method!"
+msgstr ""
+
+#: models.py:192
+#, python-format
+msgid ""
+"City of origin '%s' not found \n"
+"                                      in the shipping company postcodes to "
+"calculate charge."
+msgstr ""
+
+#: models.py:194
+#, python-format
+msgid ""
+"It seems like we couldnt find code for the city of origin (%s).\n"
+"                                        Please, select it manually, choose "
+"another address or another shipping method.\n"
+"                                    "
+msgstr ""
+
+#: models.py:201
+#, python-format
+msgid ""
+"Cant find destination city '%s' \n"
+"                                      to calculate charge. Errors: %s"
+msgstr ""
+
+#: models.py:203
+#, python-format
+msgid ""
+"It seems like we cant find code for the city of destination (%s).\n"
+"                                        Please, select it manually, choose "
+"another address or another shipping method.\n"
+"                                    "
+msgstr ""
+
+#: models.py:210
+#, python-format
+msgid "Found too many destinations for given city (%s)"
+msgstr ""
+
+#: models.py:211
+msgid "Please refine your shipping address"
+msgstr ""
+
+#: models.py:216
+#, python-format
+msgid "Error occured during charge calculation for given city (%s)"
+msgstr ""
+
+#: models.py:217
+#, python-format
+msgid "API error was: %s"
+msgstr ""
+
+#: models.py:243
+msgid "API-based Shipping Method"
+msgstr ""
+
+#: models.py:244
+msgid "API-based Shipping Methods"
+msgstr ""
+
+#: models.py:250
+msgid "Name"
+msgstr ""
+
+#: models.py:251
+msgid "Description"
+msgstr ""
+
+#: models.py:253
+msgid "Image"
+msgstr ""
+
+#: models.py:255
+msgid "Height, m"
+msgstr ""
+
+#: models.py:258
+msgid "Width, m"
+msgstr ""
+
+#: models.py:261
+msgid "Lenght, m"
+msgstr ""
+
+#: models.py:264
+msgid "Max loading, kg"
+msgstr ""
+
+#: models.py:276
+msgid "Shipping Container"
+msgstr ""
+
+#: models.py:277
+msgid "Shipping Containers"
+msgstr ""
+
+#: templates/oscar_shipping/partials/details_form.html:7
+msgid "Oops! We found some errors:"
+msgstr ""
+
+#: templates/oscar_shipping/partials/details_form.html:25
+msgid "Oops! We found some errors"
+msgstr ""
+
+#: templates/oscar_shipping/partials/details_form.html:25
+msgid "please check the error messages below and try again"
+msgstr ""
+
+#: views.py:166
+msgid "Oops. API is offline right now. Sorry."
+msgstr ""
+
+#: views.py:169
+#, python-format
+msgid "API is offline right now. Sorry. (%s)"
+msgstr ""
+
+#: views.py:173
+#, python-format
+msgid "Calculator said: %s"
+msgstr ""
