@@ -110,7 +110,6 @@ class ShippingCompany(AbstractWeightBased):
                                 blank=True)
     containers = models.ManyToManyField("ShippingContainer",
                                         blank=True,
-                                        null=True,
                                         related_name='containers', 
                                         verbose_name=_('Containers or boxes'),
                                         help_text=_('Containers or boxes could be used for packing')
