@@ -1,4 +1,5 @@
 from django import forms
+from django.template.loader import render_to_string
 from django.forms.widgets import RadioSelect
 from django.utils.html import format_html_join
 from django.utils.translation import ugettext_lazy as _
@@ -12,7 +13,7 @@ class BasePecomForm(forms.Form):
     transportingType = forms.IntegerField(widget=forms.HiddenInput, required=False)
 
 class PecomCalcForm(BasePecomForm):
-
+    options_template = "oscar_shipping/partials/pecom_options.html"
     def __init__(self, *args, **kwargs):
         lookup_url = None
         choices = None
@@ -54,21 +55,18 @@ class PecomCalcForm(BasePecomForm):
             if not full_form:
                 self.fields.pop('senderCityId')
                 self.fields.pop('receiverCityId')
-            options = [ (o['id'], _(u"%s: %s RUR. Including: <ul>%s</ul>") % (o['name'],
-                                                  o['cost'],
-                                                  format_html_join('\n', 
-                                                     u"<li>{3} {2} ({0}, {1})</li>", 
-                                                     (( s['serviceType'], 
-                                                        s['senderCity'], 
-                                                        s['cost'],
-                                                        s['info']
-                                                        ) for s in o['services']))
-                                                  ) 
-                         ) for o in options  ] 
             
+            opts = []
+            for o in options:
+                opt_ctx = {'name' : o['name'],
+                           'cost' :o['cost'],
+                           'services' :  o['services'],
+                          }
+                opts.append( (o['id'], render_to_string(self.options_template, opt_ctx)))
+
             self.fields['transportingType'] = forms.ChoiceField(label=_("Type of transportation"),
                                                                 help_text = _("Please choose the transportation type"),
-                                                                choices=options, 
+                                                                choices=opts, 
                                                                 widget=RadioSelect,
                                                                 required=True)
 

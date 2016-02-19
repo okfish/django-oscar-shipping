@@ -5,8 +5,10 @@ from decimal import Decimal as D
 
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
+from django.template.loader import render_to_string
 from django.utils.translation import ugettext_lazy as _
 from django.utils.html import format_html_join
+from django.conf import settings
 
 from pecomsdk import pecom
 
@@ -24,8 +26,7 @@ PECOM_TRANSPORT_TYPES = { 1 : _('Auto'),
                           2 : _('Avia'),
                           }
 
-origin_code = {}
-precision = D('0.0000')
+weight_precision = getattr(settings, 'OSCAR_SHIPPING_WEIGHT_PRECISION', D('0.000')) 
 
 def to_int(val):
     # TODO: make it smarter
@@ -37,6 +38,8 @@ def to_int(val):
 
 class ShippingFacade(AbstractShippingFacade):
     name = 'pecom'
+    messages_template = "oscar_shipping/partials/pecom_messages.html"
+    
     def __init__(self, api_user=None, api_key=None):
         if api_user is not None and api_key is not None:
             self.api_user, self.api_key = api_user, api_key
@@ -81,6 +84,8 @@ class ShippingFacade(AbstractShippingFacade):
         return None
     
     def get_charge(self, origin, dest, packs, options=None):
+        res = [] 
+        errors = None
         if not options:
             options = PECOM_CALC_OPTIONS
             
@@ -100,6 +105,9 @@ class ShippingFacade(AbstractShippingFacade):
                                       })
         
         res, errors = self.api.calculate(options)
+        # FIXME: if no result has been returned there should be an issue like
+        # 'NoneType' object does not support item assignment
+        # errors: PecomCabinetException(error(6, "Couldn't resolve host 'kabinet.pecom.ru'"),)
         res['senderCityId'] = origin
         res['receiverCityId'] = dest
         return res, errors
@@ -241,18 +249,15 @@ class ShippingFacade(AbstractShippingFacade):
                 else:
                     tr_code = results['transfers'][0]['transportingType']
                     charge = D(results['transfers'][0]['costTotal'])
-                    messages = u"""Ship by: %s from %s to %s. Brutto: %s kg. 
-                                   Packs: <ul>%s</ul> """ % (
-                                 self.get_transport_name(tr_code),
-                                 origin, 
-                                 dest, 
-                                 weight, 
-                                 format_html_join('\n', 
-                                 u"<li>{0} ({1}kg , {2}m<sup>3</sup>)</li>", 
-                                 ((p['container'].name, 
-                                   p['weight'], 
-                                   D(p['container'].volume).\
-                                    quantize(precision)) for p in packs)))
+                    services = results['transfers'][0]['services']
+                    msg_ctx = {'transport' : self.get_transport_name(tr_code),
+                               'services': services,
+                               'origin' : origin,
+                               'destination' :  dest,
+                               'total_weight' : D(weight).quantize(weight_precision),
+                               'packs' : packs,
+                               }
+                    messages = render_to_string(self.messages_template, msg_ctx)
                     extra_form = self.get_extra_form(initial={ 'senderCityId': origin_code,
                                                                'receiverCityId': dest_code,
                                                                'transportingType': tr_code,
