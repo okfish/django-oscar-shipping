@@ -1,23 +1,26 @@
 from decimal import Decimal as D
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
 from oscar.core import prices, loading
 
 Scale = loading.get_class('shipping.scales', 'Scale')
 
-precision = D('.0000')
+weight_precision = getattr(settings, 'OSCAR_SHIPPING_WEIGHT_PRECISION', D('0.000')) 
+volume_precision = getattr(settings, 'OSCAR_SHIPPING_VOLUME_PRECISION', D('0.000')) 
 # per product defaults
 # 0.1m x 0.1m x 0.1m
-DEFAULT_BOX = {'width' : float('0.1'), 
-               'height' : float('0.1'), 
-               'lenght' : float('0.1') }
+DEFAULT_BOX = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_BOX', {'width' : float('0.1'), 
+                                                                   'height' : float('0.1'), 
+                                                                   'lenght' : float('0.1') })
+
 # 1 Kg 
-DEFAULT_WEIGHT = 1 
+DEFAULT_WEIGHT = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_WEIGHT', 1)
 
 # basket volue * VOLUME_RATIO = estimated container(s) volume
 # very simple method
-VOLUME_RATIO = float('1.3') 
+VOLUME_RATIO = getattr(settings, 'OSCAR_SHIPPING_VOLUME_RATIO', D('1.3'))
                     
 
 class Box(object):
@@ -31,7 +34,7 @@ class Box(object):
     
     @property    
     def volume(self):
-        return self.height*self.width*self.lenght
+        return D(self.height*self.width*self.lenght).quantize(volume_precision)
 
 class Container(Box):
     name = ''
@@ -119,4 +122,5 @@ class Packer(object):
             # TODO: count container's weight - add it to model        
         else:
             container = self.get_default_container(volume)
-        return [{'weight' : weight, 'container' : container}]
+        return [{'weight' : D(weight).quantize(weight_precision), 'container' : container}]
+    
