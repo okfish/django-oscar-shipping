@@ -1,0 +1,28 @@
+{% load i18n %}
+<p>
+{% blocktrans with name=transport %}
+Details of shipping cost calculated by <strong>PEC</strong>.
+Transport type: <b>{{ name }}</b><br>
+including:
+{% endblocktrans %}
+</p>
+<p>
+	<ul>
+	{% for s in services %}
+		<li>{{ s.info }} <b><i>{{ s.cost }}</i></b><i class="fa fa-rub"> {{ s.serviceType }} ({{ s.senderCity }}) </i></li>
+	{% endfor %}
+	</ul>
+</p>
+<p>
+{% blocktrans %}
+From <strong>{{ origin }}</strong> to <strong>{{ destination }}</strong>.<br>
+Brutto: {{ total_weight }} kg.<br>
+Items:{% endblocktrans %}
+<ul>
+{% for p in packs %}
+	{% blocktrans with name=p.container.name weight=p.weight vol=p.container.volume %}
+		<li>{{ name }} ( {{ weight }} kg, {{ vol }}m<sup>3</sup>)</li>
+	{% endblocktrans %}
+{% endfor %}
+</ul>
+</p>
