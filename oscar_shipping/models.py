@@ -146,11 +146,11 @@ class ShippingCompany(AbstractWeightBased):
         if not self.destination: 
             self.errors+=_("ERROR! There is no shipping address for charge calculation!\n")
         else:
-            self.messages+=_("""Approximated shipping price 
-                                for %{weight}d kg from %{origin}s 
-                                to %{destination}s\n""" % {'weight': weight, 
-                                                            'origin': self.origin, 
-                                                            'destination': self.destination.city})
+            self.messages+=_(u"""Approximated shipping price 
+                                for {weight} kg from {origin} 
+                                to {destination}\n""").format(weight=weight, 
+                                                            origin=self.origin, 
+                                                            destination=self.destination.city)
             
             # Assuming cases like http protocol suggests:
             # e=200  - OK. Result contains charge value and extra info such as Branch code, etc
@@ -189,15 +189,15 @@ class ShippingCompany(AbstractWeightBased):
                 try:          
                     results = facade.get_charges(weight, packs, self.origin, self.destination)
                 except ApiOfflineError:
-                    self.errors += _("""%s API is offline. Cant 
+                    self.errors += _(u"""%s API is offline. Cant 
                                         calculate anything. Sorry!""") % self.name
-                    self.messages = _("Please, choose another shipping method!")
+                    self.messages = _(u"Please, choose another shipping method!")
                 except OriginCityNotFoundError as e: 
                     # Paranoid mode as ImproperlyConfigured should be raised by facade
-                    self.errors += _("""City of origin '%s' not found 
+                    self.errors += _(u"""City of origin '%s' not found 
                                       in the shipping company 
                                       postcodes to calculate charge.""") % e.title
-                    self.messages = _("""It seems like we couldnt find code 
+                    self.messages = _(u"""It seems like we couldnt find code 
                                         for the city of origin (%s).
                                         Please, select it manually, choose another 
                                         address or another shipping method.
@@ -206,10 +206,10 @@ class ShippingCompany(AbstractWeightBased):
                     self.errors += "ImproperlyConfigured error (%s)" % e.message
                     self.messages = "Please, select another shipping method or call site administrator!"
                 except CityNotFoundError as e: 
-                    self.errors += _("""Cant find destination city '%{title}s' 
+                    self.errors += _(u"""Cant find destination city '{title}' 
                                       to calculate charge. 
-                                      Errors: %{errors}s""" % {'title': e.title, 'errors': e.errors})
-                    self.messages = _("""It seems like we cant find code 
+                                      Errors: {errors}""").format(title=e.title, errors=e.errors)
+                    self.messages = _(u"""It seems like we cant find code 
                                         for the city of destination (%s).
                                         Please, select it manually, choose 
                                         another address or another shipping method.
@@ -218,15 +218,15 @@ class ShippingCompany(AbstractWeightBased):
                                                             lookup_url=lookup_url,
                                                             details_url=details_url)
                 except TooManyFoundError as e:
-                    self.errors += _("Found too many destinations for given city (%s)") % e.title
+                    self.errors += _(u"Found too many destinations for given city (%s)") % e.title
                     self.messages = _("Please refine your shipping address")
                     self.extra_form = facade.get_extra_form(origin=self.origin, 
                                                             choices=e.results,
                                                             details_url=details_url)
                 except CalculationError as e:
-                    self.errors += _("""Error occured during charge 
+                    self.errors += _(u"""Error occured during charge 
                                         calculation for given city (%s)""") % e.title
-                    self.messages = _("API error was: %s") % e.errors
+                    self.messages = _(u"API error was: %s") % e.errors
                     self.extra_form = facade.get_extra_form(origin=self.origin,
                                                             details_url=details_url,
                                                             lookup_url=lookup_url)
