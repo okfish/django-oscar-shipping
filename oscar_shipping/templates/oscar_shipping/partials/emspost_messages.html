@@ -1,0 +1,24 @@
+{% load i18n %}
+<p>
+{% blocktrans %}
+Details of shipping cost calculated by <strong>EMS</strong>
+{% endblocktrans %}
+</p>
+<p>
+{% blocktrans %}
+From <strong>{{ origin }}</strong> to <strong>{{ destination }}</strong>.<br>
+Brutto: {{ total_weight }} kg.<br>
+Items:{% endblocktrans %}
+<ul>
+{% for p in packs %}
+{% blocktrans with name=p.container.name weight=p.weight vol=p.container.volume %}
+<li>{{ name }} ( {{ weight }} kg, {{ vol }}m<sup>3</sup>)</li>
+{% endblocktrans %}
+{% endfor %}
+</ul>
+{% if time_min and time_max %}
+{% blocktrans with min=time_min max=time_max %}
+Estimated delivery time: from {{ min }} to {{ max }} days.
+{% endblocktrans %} 
+{% endif %}
+</p>
