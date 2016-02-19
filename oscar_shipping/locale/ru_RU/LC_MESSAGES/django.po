@@ -7,286 +7,340 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-09-17 19:55+0300\n"
+"POT-Creation-Date: 2016-02-19 19:06+0300\n"
 "PO-Revision-Date: 2015-09-17 20:38+0300\n"
+"Last-Translator: \n"
+"Language-Team: \n"
 "Language: ru_RU\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Last-Translator: \n"
-"Language-Team: \n"
 "X-Generator: Poedit 1.8.4\n"
 
-#: checkout/views.py:25
-msgid "Your submitted shipping method is not permitted"
-msgstr "Выбранный способ доставки, не доступен"
-
-#: checkout/views.py:39
+#: oscar_shipping/checkout/views.py:33
 #, python-format
 msgid "Shipping method %s selected"
 msgstr "%s - доставка выбрана"
 
-#: facade/emspost.py:24
+#: oscar_shipping/facade/emspost.py:25
 msgid "Russian Cities"
 msgstr "Города России"
 
-#: facade/emspost.py:25
+#: oscar_shipping/facade/emspost.py:26
 msgid "Regions of Russia"
 msgstr "Регионы России"
 
-#: facade/emspost.py:26
+#: oscar_shipping/facade/emspost.py:27
 msgid "All Russian Regions and Cities"
 msgstr "Все города и регионы России"
 
-#: facade/emspost.py:27
+#: oscar_shipping/facade/emspost.py:28
 msgid "Foreign Countries"
 msgstr "Зарубежные страны"
 
-#: facade/emspost.py:92
+#: oscar_shipping/facade/emspost.py:94
 msgid "Sorry. EMS API is offline right now"
 msgstr "Извините. EMS API сейчас офлайн"
 
-#: facade/forms.py:38 facade/forms.py:47 facade/forms.py:98
-#: facade/forms.py:106
+#: oscar_shipping/facade/forms.py:39 oscar_shipping/facade/forms.py:48
+#: oscar_shipping/facade/forms.py:96 oscar_shipping/facade/forms.py:104
 msgid "Destination city"
 msgstr "Место назначения"
 
-#: facade/forms.py:57
-#, python-format
-msgid "%s: %s RUR. Including: <ul>%s</ul>"
-msgstr ""
-
-#: facade/forms.py:69
+#: oscar_shipping/facade/forms.py:67
 msgid "Type of transportation"
 msgstr "Способ транспортировки"
 
-#: facade/forms.py:70
+#: oscar_shipping/facade/forms.py:68
 msgid "Please choose the transportation type"
 msgstr "Выберите способ транспортировки"
 
-#: facade/pecom.py:23
+#: oscar_shipping/facade/pecom.py:25
 msgid "Auto"
 msgstr "Авто"
 
-#: facade/pecom.py:24
+#: oscar_shipping/facade/pecom.py:26
 msgid "Avia"
 msgstr "Авиа"
 
-#: facade/pecom.py:315
+#: oscar_shipping/facade/pecom.py:320
 #, python-format
 msgid "Branch: %s"
 msgstr ""
 
-#: methods.py:15
+#: oscar_shipping/methods.py:15
 msgid "Self-service Pickup and shipping"
 msgstr "Самовывоз"
 
-#: methods.py:16
+#: oscar_shipping/methods.py:16
 msgid "Customers can pick up goods in the central store"
 msgstr "Клиенты могут забрать товар самовывозом"
 
-#: models.py:36
+#: oscar_shipping/models.py:37
 msgid "PEC API ver. 1.0"
 msgstr "ПЭК API ver. 1.0"
 
-#: models.py:37
+#: oscar_shipping/models.py:38
 msgid "EMS Russian Post REST API"
 msgstr "EMS Почта России REST API"
 
-#: models.py:38
+#: oscar_shipping/models.py:39
 msgid "DHL API (not ready yet)"
 msgstr "DHL API (в разработке)"
 
-#: models.py:39
+#: oscar_shipping/models.py:40
 msgid "USPS API (not ready yet)"
 msgstr "USPS API (в разработке)"
 
-#: models.py:43
+#: oscar_shipping/models.py:44
 msgid "Online"
 msgstr ""
 
-#: models.py:44
+#: oscar_shipping/models.py:45
 msgid "Offline"
 msgstr ""
 
-#: models.py:45
+#: oscar_shipping/models.py:46
 msgid "Disabled"
 msgstr "Отключено"
 
-#: models.py:98
+#: oscar_shipping/models.py:99
 msgid "API username"
 msgstr ""
 
-#: models.py:99
+#: oscar_shipping/models.py:100
 msgid "API key"
 msgstr ""
 
-#: models.py:100
+#: oscar_shipping/models.py:101
 msgid "API type"
 msgstr ""
 
-#: models.py:104
+#: oscar_shipping/models.py:105
 msgid "City of origin"
 msgstr "Место отправления"
 
-#: models.py:105
+#: oscar_shipping/models.py:106
 msgid "active"
 msgstr "активно"
 
-#: models.py:106
+#: oscar_shipping/models.py:107
 msgid "Use this method in checkout?"
 msgstr "Использовать этот способ?"
 
-#: models.py:107
+#: oscar_shipping/models.py:108
 msgid "status"
 msgstr "статус"
 
-#: models.py:115
+#: oscar_shipping/models.py:115
 msgid "Containers or boxes"
 msgstr "Коробки и контейнеры"
 
-#: models.py:116
+#: oscar_shipping/models.py:116
 msgid "Containers or boxes could be used for packing"
 msgstr "Коробки и контейнеры могут использоваться для упаковки"
 
-#: models.py:146
+#: oscar_shipping/models.py:147
 msgid "ERROR! There is no shipping address for charge calculation!\n"
 msgstr "Ошибка! Отсутствует адрес для расчета стоимости! \n"
 
-#: models.py:148
-#, python-format
+#: oscar_shipping/models.py:149
 msgid ""
 "Approximated shipping price \n"
-"                                for %d kg from %s to %s\n"
+"                                for %{weight}d kg from %{origin}s \n"
+"                                to %{destination}s\n"
 msgstr ""
 
-#: models.py:188
+#: oscar_shipping/models.py:192
 #, python-format
-msgid "%s API is offline. Cant calculate anything. Sorry!"
+msgid ""
+"%s API is offline. Cant \n"
+"                                        calculate anything. Sorry!"
 msgstr ""
 
-#: models.py:189
+#: oscar_shipping/models.py:194
 msgid "Please, choose another shipping method!"
 msgstr "Выберите другой способ доставки!"
 
-#: models.py:192
+#: oscar_shipping/models.py:197
 #, python-format
 msgid ""
 "City of origin '%s' not found \n"
-"                                      in the shipping company postcodes to "
-"calculate charge."
+"                                      in the shipping company \n"
+"                                      postcodes to calculate charge."
 msgstr ""
 
-#: models.py:194
+#: oscar_shipping/models.py:200
 #, python-format
 msgid ""
-"It seems like we couldnt find code for the city of origin (%s).\n"
+"It seems like we couldnt find code \n"
+"                                        for the city of origin (%s).\n"
 "                                        Please, select it manually, choose "
-"another address or another shipping method.\n"
+"another \n"
+"                                        address or another shipping method.\n"
 "                                    "
 msgstr ""
 
-#: models.py:201
-#, python-format
+#: oscar_shipping/models.py:209
 msgid ""
-"Cant find destination city '%s' \n"
-"                                      to calculate charge. Errors: %s"
+"Cant find destination city '%{title}s' \n"
+"                                      to calculate charge. \n"
+"                                      Errors: %{errors}s"
 msgstr ""
 
-#: models.py:203
+#: oscar_shipping/models.py:212
 #, python-format
 msgid ""
-"It seems like we cant find code for the city of destination (%s).\n"
-"                                        Please, select it manually, choose "
-"another address or another shipping method.\n"
+"It seems like we cant find code \n"
+"                                        for the city of destination (%s).\n"
+"                                        Please, select it manually, choose \n"
+"                                        another address or another shipping "
+"method.\n"
 "                                    "
 msgstr ""
 
-#: models.py:210
+#: oscar_shipping/models.py:221
 #, python-format
 msgid "Found too many destinations for given city (%s)"
 msgstr ""
 
-#: models.py:211
+#: oscar_shipping/models.py:222
 msgid "Please refine your shipping address"
 msgstr "Уточните адрес доставки"
 
-#: models.py:216
-#, python-format
-msgid "Error occured during charge calculation for given city (%s)"
+#: oscar_shipping/models.py:227
+#, fuzzy, python-format
+#| msgid "Error occured during charge calculation for given city (%s)"
+msgid ""
+"Error occured during charge \n"
+"                                        calculation for given city (%s)"
 msgstr "При расчете стоимости для (%s) произошла ошибка"
 
-#: models.py:217
+#: oscar_shipping/models.py:229
 #, python-format
 msgid "API error was: %s"
 msgstr "Сообщение API: (%s)"
 
-#: models.py:243
+#: oscar_shipping/models.py:255
 msgid "API-based Shipping Method"
 msgstr ""
 
-#: models.py:244
+#: oscar_shipping/models.py:256
 msgid "API-based Shipping Methods"
 msgstr ""
 
-#: models.py:250
+#: oscar_shipping/models.py:262
 msgid "Name"
 msgstr ""
 
-#: models.py:251
+#: oscar_shipping/models.py:263
 msgid "Description"
 msgstr "Описание"
 
-#: models.py:253
+#: oscar_shipping/models.py:265
 msgid "Image"
 msgstr "Изображение"
 
-#: models.py:255
+#: oscar_shipping/models.py:267
 msgid "Height, m"
 msgstr "Высота, м"
 
-#: models.py:258
+#: oscar_shipping/models.py:270
 msgid "Width, m"
 msgstr "Ширина, м"
 
-#: models.py:261
+#: oscar_shipping/models.py:273
 msgid "Lenght, m"
 msgstr "Длина, м"
 
-#: models.py:264
+#: oscar_shipping/models.py:276
 msgid "Max loading, kg"
 msgstr "Макс нагрузка, кг"
 
-#: models.py:276
+#: oscar_shipping/models.py:288
 msgid "Shipping Container"
 msgstr "Транспортный контейнер"
 
-#: models.py:277
+#: oscar_shipping/models.py:289
 msgid "Shipping Containers"
 msgstr "Перевозка контейнеров"
 
-#: templates/oscar_shipping/partials/details_form.html:7
+#: oscar_shipping/templates/oscar_shipping/partials/details_form.html:7
 msgid "Oops! We found some errors:"
 msgstr "Есть ошибки!"
 
-#: templates/oscar_shipping/partials/details_form.html:25
+#: oscar_shipping/templates/oscar_shipping/partials/details_form.html:25
 msgid "Oops! We found some errors"
 msgstr "Есть ошибки!"
 
-#: templates/oscar_shipping/partials/details_form.html:25
+#: oscar_shipping/templates/oscar_shipping/partials/details_form.html:25
 msgid "please check the error messages below and try again"
 msgstr "проверьте сообщение об ошибке и попробуйте снова"
 
-#: views.py:166
+#: oscar_shipping/templates/oscar_shipping/partials/emspost_messages.html:3
+msgid ""
+"\n"
+"Details of shipping cost calculated by <strong>EMS</strong>\n"
+msgstr ""
+
+#: oscar_shipping/templates/oscar_shipping/partials/emspost_messages.html:8
+#: oscar_shipping/templates/oscar_shipping/partials/pecom_messages.html:17
+#, python-format
+msgid ""
+"\n"
+"From <strong>%(origin)s</strong> to <strong>%(destination)s</strong>.<br>\n"
+"Brutto: %(total_weight)s kg.<br>\n"
+"Items:"
+msgstr ""
+
+#: oscar_shipping/templates/oscar_shipping/partials/emspost_messages.html:14
+#, python-format
+msgid ""
+"\n"
+"<li>%(name)s ( %(weight)s kg, %(vol)sm<sup>3</sup>)</li>\n"
+msgstr ""
+
+#: oscar_shipping/templates/oscar_shipping/partials/emspost_messages.html:20
+#, python-format
+msgid ""
+"\n"
+"Estimated delivery time: from %(min)s to %(max)s days.\n"
+msgstr ""
+
+#: oscar_shipping/templates/oscar_shipping/partials/pecom_messages.html:3
+#, python-format
+msgid ""
+"\n"
+"Details of shipping cost calculated by <strong>PEC</strong>.\n"
+"Transport type: <b>%(name)s</b><br>\n"
+"including:\n"
+msgstr ""
+
+#: oscar_shipping/templates/oscar_shipping/partials/pecom_messages.html:23
+#, python-format
+msgid ""
+"\n"
+"\t\t<li>%(name)s ( %(weight)s kg, %(vol)sm<sup>3</sup>)</li>\n"
+"\t"
+msgstr ""
+
+#: oscar_shipping/templates/oscar_shipping/partials/pecom_options.html:4
+msgid "including:"
+msgstr "включая:"
+
+#: oscar_shipping/views.py:166
 msgid "Oops. API is offline right now. Sorry."
 msgstr "УПС. Прямо сейчас API в оффлайне. Извините."
 
-#: views.py:169
+#: oscar_shipping/views.py:169
 #, python-format
 msgid "API is offline right now. Sorry. (%s)"
 msgstr ""
 
-#: views.py:173
+#: oscar_shipping/views.py:173
 #, python-format
 msgid "Calculator said: %s"
 msgstr "Калькулятор: %s"
+
+#~ msgid "Your submitted shipping method is not permitted"
+#~ msgstr "Выбранный способ доставки недоступен"
