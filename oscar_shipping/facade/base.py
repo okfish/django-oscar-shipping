@@ -42,7 +42,7 @@ class AbstractShippingFacade(object):
             return code
         else:
             cities, error = self.api.findbytitle(origin)
-            if not error and len(cities)>0:
+            if not error and len(cities) > 0:
                 # WARNING! The only first found code used as origin
                 origin_code[cache_key] = cities[0][0]
                 return origin_code[cache_key]
@@ -56,7 +56,7 @@ class AbstractShippingFacade(object):
         res = []
         cache_key = ':'.join([self.name, city])
         
-        res = cache.get(cache_key) # should returns list of tuples like facade do but as json
+        res = cache.get(cache_key)  # should returns list of tuples like facade do but as json
         if not res:
             res, errors = self.api.findbytitle(city)
             if not errors:
@@ -78,7 +78,7 @@ class AbstractShippingFacade(object):
             try:
                 # take all after separator
                 city = city.split(CITY_PREFIX_SEPARATOR, 1)[1]
-            except KeyError:
+            except IndexError:
                 pass
         return city
 
