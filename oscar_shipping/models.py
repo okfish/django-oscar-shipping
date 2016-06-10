@@ -1,50 +1,42 @@
 # -*- coding: utf-8 -*-
 from decimal import Decimal as D
 
-import json
 import importlib
 
 from django.db import models
 from django.conf import settings
 from django.contrib import messages
-from django.utils.html import format_html_join
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ImproperlyConfigured
 from django.core.urlresolvers import reverse_lazy
-from django.template.loader import render_to_string
 
 from oscar.apps.shipping.abstract_models import AbstractWeightBased
 from oscar.core import prices, loading
 
 from .packers import Packer
-from .exceptions import ( OriginCityNotFoundError, 
-                          CityNotFoundError, 
-                          ApiOfflineError, 
-                          TooManyFoundError, 
-                          CalculationError)
+from .exceptions import (OriginCityNotFoundError,
+                         CityNotFoundError,
+                         ApiOfflineError,
+                         TooManyFoundError,
+                         CalculationError)
 
 weight_precision = getattr(settings, 'OSCAR_SHIPPING_WEIGHT_PRECISION', D('0.000')) 
 volume_precision = getattr(settings, 'OSCAR_SHIPPING_VOLUME_PRECISION', D('0.000'))
 
 Scale = loading.get_class('shipping.scales', 'Scale')
 
-DEFAULT_ORIGIN = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_ORIGIN', u'Санкт-Петербург')
+DEFAULT_ORIGIN = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_ORIGIN', 'Saint-Petersburg')
 
 API_ENABLED = getattr(settings, 'OSCAR_SHIPPING_API_ENABLED', ['pecom', 'emspost'])
 
 API_AVAILABLE = {'pecom': _('PEC API ver. 1.0'), 
-                 'emspost' :_('EMS Russian Post REST API'),
-                 'dhl' : _('DHL API (not ready yet)'),
-                 'usps' : _('USPS API (not ready yet)'),
+                 'emspost': _('EMS Russian Post REST API'),
+                 'dhl': _('DHL API (not ready yet)'),
+                 'usps': _('USPS API (not ready yet)'),
                  }
-ONLINE, OFFLINE, DISABLED = 'online','offline','disabled'
-API_STATUS_CHOICES = (
-    (ONLINE, _('Online')),
-    (OFFLINE, _('Offline')),
-    (DISABLED, _('Disabled')),
-)
+
 
 def get_api_modules():
     res = {}
@@ -57,9 +49,10 @@ def get_api_modules():
 
 api_modules_pool = get_api_modules()
 
+
 def get_enabled_api():
-    #mods = api_modules_pool
-    return [(a, API_AVAILABLE[a]) for a in (API_ENABLED and api_modules_pool.keys()) ]
+    return [(a, API_AVAILABLE[a]) for a in (API_ENABLED and api_modules_pool.keys())]
+
 
 class ShippingCompanyManager(models.Manager):
     def get_queryset(self):
@@ -67,6 +60,7 @@ class ShippingCompanyManager(models.Manager):
         Just return original queryset
         """
         return super(ShippingCompanyManager, self).get_queryset()
+
 
 class AvailableCompanyManager(ShippingCompanyManager):
     
@@ -86,16 +80,30 @@ class AvailableCompanyManager(ShippingCompanyManager):
             m.set_destination(addr)
         return methods
 
+
 class ShippingCompany(AbstractWeightBased):
     """Shipping methods based on cargo companies APIs.
     """ 
-    size_attributes = ('width' , 'height', 'lenght')
+    size_attributes = ('width', 'height', 'length')
 
-    destination = None # not stored field used for charge calculation
+    destination = None  # not stored field used for charge calculation
     
-    errors = ''   # There is an issue with iterables and arrays as class properties and it scopes for class and instance
-    messages = '' # so just a one string messages per calculate() method call 
-                        
+    errors = ''    # There is an issue with iterables and arrays as class properties and it scopes
+    messages = ''  # for class and instance so just a one string messages per calculate() method call
+
+    ONLINE, OFFLINE, DISABLED = 'online', 'offline', 'disabled'
+    API_STATUS_CHOICES = (
+        (ONLINE, _('Online')),
+        (OFFLINE, _('Offline')),
+        (DISABLED, _('Disabled')),
+    )
+
+    PREPAID, POSTPAID = 'prepaid', 'postpaid'
+    PAYMENT_CHOICES = (
+        (PREPAID, _('Order includes shipping charges')),
+        (POSTPAID, _('Shipping is paid by buyer'))
+    )
+
     api_user = models.CharField(_("API username"), max_length=64, blank=True)
     api_key = models.CharField(_("API key"), max_length=255, blank=True)
     api_type = models.CharField(verbose_name=_('API type'),
@@ -104,11 +112,19 @@ class ShippingCompany(AbstractWeightBased):
                                 blank=True)
     origin = models.CharField(_("City of origin"), max_length=255, blank=True, default=DEFAULT_ORIGIN)
     is_active = models.BooleanField(_('active'), default=False,
-                                        help_text=_('Use this method in checkout?'))
+                                    help_text=_('Use this method in checkout?'))
+
     status = models.CharField(verbose_name=_('status'),
-                                max_length=10, 
-                                choices=API_STATUS_CHOICES, 
-                                blank=True)
+                              max_length=10,
+                              choices=API_STATUS_CHOICES,
+                              blank=True)
+
+    payment_type = models.CharField(verbose_name=_('payment type'),
+                                    max_length=10,
+                                    choices=PAYMENT_CHOICES,
+                                    default=POSTPAID,
+                                    blank=True)
+
     containers = models.ManyToManyField("ShippingContainer",
                                         blank=True,
                                         related_name='containers', 
@@ -123,7 +139,11 @@ class ShippingCompany(AbstractWeightBased):
         super(ShippingCompany, self).__init__(*args, **kwargs)
         if self.api_type:
             self.facade = api_modules_pool[self.api_type].ShippingFacade(self.api_user, self.api_key)
-        
+
+    @property
+    def is_prepaid(self):
+        return self.payment_type == self.PREPAID
+
     def calculate(self, basket, options=None):
         
         results = []
@@ -144,13 +164,13 @@ class ShippingCompany(AbstractWeightBased):
         packs = packer.pack_basket(basket)  
         facade = self.facade
         if not self.destination: 
-            self.errors+=_("ERROR! There is no shipping address for charge calculation!\n")
+            self.errors += _("ERROR! There is no shipping address for charge calculation!\n")
         else:
-            self.messages+=_(u"""Approximated shipping price 
+            self.messages += _(u"""Approximated shipping price
                                 for {weight} kg from {origin} 
                                 to {destination}\n""").format(weight=weight, 
-                                                            origin=self.origin, 
-                                                            destination=self.destination.city)
+                                                              origin=self.origin,
+                                                              destination=self.destination.city)
             
             # Assuming cases like http protocol suggests:
             # e=200  - OK. Result contains charge value and extra info such as Branch code, etc
@@ -163,15 +183,15 @@ class ShippingCompany(AbstractWeightBased):
             # an URL for AJAXed city-to-city charge lookup
             details_url = reverse_lazy('shipping:charge-details', kwargs={'slug': self.code})
             # an URL for AJAXed code by city lookup using Select2 widget
-            lookup_url=reverse_lazy('shipping:city-lookup', kwargs={'slug': self.code})
+            lookup_url = reverse_lazy('shipping:city-lookup', kwargs={'slug': self.code})
             
             # if options set make a short call to API for final calculation  
             if options:
                 errors = None
                 try:
                     results, errors = facade.get_charge(options['senderCityId'], 
-                                                options['receiverCityId'],
-                                                packs)
+                                                        options['receiverCityId'],
+                                                        packs)
                 except CalculationError as e:
                     self.errors = "Post-calculation error: %s" % e.errors
                     self.messages = e.title
@@ -202,7 +222,7 @@ class ShippingCompany(AbstractWeightBased):
                                         Please, select it manually, choose another 
                                         address or another shipping method.
                                     """) % e.title
-                except ImproperlyConfigured as e: # upraised error handling
+                except ImproperlyConfigured as e:  # upraised error handling
                     self.errors += "ImproperlyConfigured error (%s)" % e.message
                     self.messages = "Please, select another shipping method or call site administrator!"
                 except CityNotFoundError as e: 
@@ -235,10 +255,10 @@ class ShippingCompany(AbstractWeightBased):
                 else:
                     (charge, self.messages, 
                      self.errors, self.extra_form) = facade.parse_results(results, 
-                                                                            origin=self.origin,
-                                                                            dest=self.destination,
-                                                                            weight=weight,
-                                                                            packs=packs)
+                                                                          origin=self.origin,
+                                                                          dest=self.destination,
+                                                                          weight=weight,
+                                                                          packs=packs)
         
         # Zero tax is assumed...
         return prices.Price(
@@ -254,7 +274,6 @@ class ShippingCompany(AbstractWeightBased):
         app_label = 'shipping'
         verbose_name = _("API-based Shipping Method")
         verbose_name_plural = _("API-based Shipping Methods")
-
 
 
 @python_2_unicode_compatible
@@ -283,7 +302,7 @@ class ShippingContainer(models.Model):
     def volume(self):
         return D(self.height*self.width*self.lenght).quantize(volume_precision)
     
-    class Meta():
+    class Meta:
         app_label = 'shipping'
         verbose_name = _("Shipping Container")
-        verbose_name_plural = _("Shipping Containers")    
+        verbose_name_plural = _("Shipping Containers")

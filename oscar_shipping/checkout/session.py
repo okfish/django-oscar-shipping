@@ -1,11 +1,16 @@
 from decimal import Decimal as D
 
+from django.core.urlresolvers import reverse
+
 from oscar.core import prices
 from oscar.apps.checkout.session import CheckoutSessionMixin as CoreCheckoutSessionMixin
+from oscar.apps.checkout import exceptions
 from oscar.core.loading import get_class
 
-#CoreCheckoutSessionMixin = get_class('checkout.session', 'CheckoutSessionMixin')
+from oscar_shipping.methods import is_prepaid_shipping
+
 Repository = get_class('shipping.repository', 'Repository')
+
 
 class CheckoutSessionMixin(CoreCheckoutSessionMixin):
 
@@ -70,15 +75,16 @@ class CheckoutSessionMixin(CoreCheckoutSessionMixin):
         shipping_method = self.get_shipping_method(
             basket, shipping_address)
         billing_address = self.get_billing_address(shipping_address)
+        shipping_charge = prices.Price(
+            currency=basket.currency, excl_tax=D('0.00'), incl_tax=D('0.00'))
         if not shipping_method:
-            total = shipping_charge = None
+            total = None
         else:
             shipping_kwargs = self.get_shipping_kwargs()
-#             if shipping_kwargs:
-#                 shipping_charge = shipping_method.calculate(basket, shipping_kwargs)
-#             else:
-#                 shipping_charge = shipping_method.calculate(basket)
-            shipping_charge = shipping_method.calculate(basket, shipping_kwargs or None)
+            # add shipping charge if only method has prepaid payment type set as true
+            # or has not payment_type attr (for simple methods)
+            if is_prepaid_shipping(shipping_method):
+                shipping_charge = shipping_method.calculate(basket, shipping_kwargs or None)
             total = self.get_order_totals(
                 basket, shipping_charge=shipping_charge)
         submission = {
@@ -90,7 +96,6 @@ class CheckoutSessionMixin(CoreCheckoutSessionMixin):
             'billing_address': billing_address,
             'order_total': total,
             # Details for shipping charge
-            #'shipping_kwargs' : shipping_kwargs,
             'order_kwargs': {},
             'payment_kwargs': {}}
         
@@ -113,5 +118,3 @@ class CheckoutSessionMixin(CoreCheckoutSessionMixin):
             submission['order_kwargs']['guest_email'] = email
         
         return submission
-    
-    
