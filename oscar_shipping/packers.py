@@ -2,8 +2,9 @@ from decimal import Decimal as D
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils.translation import ugettext_lazy as _
 
-from oscar.core import prices, loading
+from oscar.core import loading
 
 Scale = loading.get_class('shipping.scales', 'Scale')
 
@@ -11,9 +12,9 @@ weight_precision = getattr(settings, 'OSCAR_SHIPPING_WEIGHT_PRECISION', D('0.000
 volume_precision = getattr(settings, 'OSCAR_SHIPPING_VOLUME_PRECISION', D('0.000')) 
 # per product defaults
 # 0.1m x 0.1m x 0.1m
-DEFAULT_BOX = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_BOX', {'width' : float('0.1'), 
-                                                                   'height' : float('0.1'), 
-                                                                   'lenght' : float('0.1') })
+DEFAULT_BOX = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_BOX', {'width': float('0.1'),
+                                                               'height': float('0.1'),
+                                                               'lenght': float('0.1')})
 
 # 1 Kg 
 DEFAULT_WEIGHT = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_WEIGHT', 1)
@@ -30,17 +31,20 @@ class Box(object):
     lenght = 0
 
     def __init__(self, h, w, l):
-        self.height, self.width , self.lenght = h, w, l
+        self.height, self.width, self.lenght = h, w, l
     
     @property    
     def volume(self):
         return D(self.height*self.width*self.lenght).quantize(volume_precision)
 
+
 class Container(Box):
     name = ''
+
     def __init__(self, h, w, l, name):
         self.name = name
-        super(Container, self).__init__(h,w,l)
+        super(Container, self).__init__(h, w, l)
+
 
 class ProductBox(Box):
     """
@@ -51,7 +55,7 @@ class ProductBox(Box):
     
     def __init__(self, 
                  product, 
-                 size_codes=('width', 'height' , 'lenght'), 
+                 size_codes=('width', 'height', 'length'),
                  weight_code='weight',
                  default_weight=DEFAULT_WEIGHT):
         self.attributes = size_codes
@@ -67,7 +71,8 @@ class ProductBox(Box):
         self.weight = scale.weigh_product(product)
         for attr in attr_vals.keys():
             setattr(self, attr, attr_vals[attr])
-            
+
+
 class Packer(object):
     """
     To calculate shipping charge the set of containers required.
@@ -77,9 +82,8 @@ class Packer(object):
     """
     
     def __init__(self, containers, **kwargs):
-        #attribute_codes=('width', 'height' , 'lenght'), weight_code='weight'
         self.containers = containers
-        self.attributes = kwargs.get('attribute_codes', ('width', 'height' , 'lenght'))
+        self.attributes = kwargs.get('attribute_codes', ('width', 'height', 'lenght'))
         self.weight_code = kwargs.get('weight_code', 'weight')
         self.default_weight = kwargs.get('default_weight', DEFAULT_WEIGHT)
 
@@ -88,11 +92,11 @@ class Packer(object):
             but enough to calculate estimated shipping charge
             for the basket's volume given
         """
-        side = volume ** (1 / 3.0)
-        return Container( side,side,side, 'virtual volume(%s)' % volume )
+        side = float(volume) ** (1 / 3.0)
+        return Container(side, side, side, _('virtual volume (%s)') % volume)
     
     def box_product(self, product):
-        return ProductBox(product, self.attributes, self.weight_code, self.default_weight )
+        return ProductBox(product, self.attributes, self.weight_code, self.default_weight)
 
     def pack_basket(self, basket):
         # First attempt but very weird 
@@ -111,7 +115,7 @@ class Packer(object):
         # source: http://stackoverflow.com/questions/1652577/django-ordering-queryset-by-a-calculated-field
         # as we can't use computed values in the WHERE clause
         # we will filter containers as python list 
-        #container = self.containers.extra(select={'volume': 'height*width*lenght'})\
+        # container = self.containers.extra(select={'volume': 'height*width*lenght'})\
         #                           .extra(order_by=['volume'])\
         #                           .extra(where=['"volume">%s'], params=[volume])[0]
         
@@ -122,5 +126,4 @@ class Packer(object):
             # TODO: count container's weight - add it to model        
         else:
             container = self.get_default_container(volume)
-        return [{'weight' : D(weight).quantize(weight_precision), 'container' : container}]
-    
+        return [{'weight': D(weight).quantize(weight_precision), 'container': container}]
