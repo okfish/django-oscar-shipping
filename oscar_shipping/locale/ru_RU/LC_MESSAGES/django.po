@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2016-06-11 02:06+0300\n"
+"POT-Creation-Date: 2016-06-21 23:13+0300\n"
 "PO-Revision-Date: 2016-06-06 20:53+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -157,7 +157,7 @@ msgid "ERROR! There is no shipping address for charge calculation!\n"
 msgstr "Ошибка! Отсутствует адрес для расчета стоимости! \n"
 
 #: models.py:169
-#,  python-brace-format
+#, python-brace-format
 msgid ""
 "Approximated shipping price\n"
 "                                for {weight} kg from {origin} \n"
@@ -304,6 +304,11 @@ msgstr "Транспортный контейнер"
 #: models.py:308
 msgid "Shipping Containers"
 msgstr "Перевозка контейнеров"
+
+#: packers.py:96
+#, python-format
+msgid "virtual volume (%s)"
+msgstr "вирт. контейнер объемом %s"
 
 #: templates/oscar_shipping/partials/details_form.html:7
 msgid "Oops! We found some errors:"
