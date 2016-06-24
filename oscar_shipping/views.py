@@ -6,7 +6,10 @@ from django.contrib import messages
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.generic.base import View
 from django.utils.translation import ugettext_lazy as _
+from django.template.loader import render_to_string
+from django.template import Context, Template
 
+from oscar.core import ajax
 from oscar.core.loading import get_class
 
 from .models import api_modules_pool
@@ -21,6 +24,12 @@ from .checkout.session import CheckoutSessionMixin
 
 Repository = get_class('shipping.repository', 'Repository')
 Scale = get_class('shipping.scales', 'Scale')
+
+
+# this is a workaround for currency tag which can be overloaded in the project
+# but we cannot use get_class for that yet
+def currency(value):
+    return Template('{% load currency_filters %}{{val|currency}}').render(Context({'val': value}))
 
 
 class CityLookupView(CheckoutSessionMixin, View):
@@ -125,9 +134,22 @@ class ShippingDetailsView(CheckoutSessionMixin, View):
         return (GET.get('from', None),
                 GET.get('to', None))
 
+    def json_response(self, ctx, flash_messages):
+        payload = {
+            'messages': flash_messages.as_dict(),
+            'content_html': render_to_string(self.template, ctx),}
+        if 'charge' in ctx:
+            payload['charge'] = currency(ctx['charge'])
+        if 'method_code' in ctx:
+            payload['method_code'] = ctx['method_code']
+
+        return HttpResponse(json.dumps(payload),
+                            content_type="application/json")
+
     def get(self, request, **kwargs):
-        ctx = {}
-        method = None
+
+        data = ctx = {}
+        msg = method = None
         # origin = None
         # dest = None
         # self.request = request
@@ -136,7 +158,7 @@ class ShippingDetailsView(CheckoutSessionMixin, View):
         for m in self.get_available_shipping_methods():
             if m.code == method_code:
                 method = m
-                ctx['method'] = method_code
+                ctx['method_code'] = method_code
         if not method:
             return HttpResponseBadRequest('Bad shipping method code!')
         facade = api_modules_pool[method.api_type].ShippingFacade(method.api_user, method.api_key)
@@ -155,18 +177,16 @@ class ShippingDetailsView(CheckoutSessionMixin, View):
         weight = scale.weigh_basket(request.basket)
         # Should be a list of dicts { 'weight': weight, 'container' : container }
         packs = packer.pack_basket(request.basket)  
+        flash_messages = ajax.FlashMessages()
 
         try:
             charges = facade.get_charges(weight, packs, fromID, toID)
         except ApiOfflineError as e:
-            messages.error(request, _('Oops. API is offline right now. Sorry.'))
-            return render(request, 
-                          self.template, 
-                          {'errors': _('API is offline right now. Sorry. (%s)' % e)})
+            msg = _('API is offline right now. Sorry. (%s)' % e)
+            ctx['errors'] = msg
         except CalculationError as e:
-            return render(request, 
-                          self.template, 
-                          {'errors': _('Calculator said: %s' % e.errors)})
+            msg = _('Calculator said: %s' % e.errors)
+            ctx['errors'] = msg
         else:
             charge, api_messages, errors, extra_form = facade.parse_results(charges,
                                                                             origin=origin,
@@ -178,7 +198,12 @@ class ShippingDetailsView(CheckoutSessionMixin, View):
             else:
                 ctx['charge'] = charge
                 ctx['messages'] = api_messages
-                ctx['errors'] = errors
-            return render(request, 
-                          self.template,
-                          ctx, content_type="text/html")
+                ctx['errors'] = msg = errors
+
+        if request.is_ajax():
+            if msg:
+                flash_messages.error(msg)
+            return self.json_response(ctx, flash_messages)
+        else:
+            messages.error(request, msg)
+            return render(request, self.template, ctx, content_type="text/html")
