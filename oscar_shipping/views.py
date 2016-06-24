@@ -1,29 +1,36 @@
 # -*- coding: UTF-8 -*-
 import json
-import itertools
 
 from django.shortcuts import render
 from django.contrib import messages
-from django.core.cache import cache
-from django.template.response import TemplateResponse
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.generic.base import View
 from django.utils.translation import ugettext_lazy as _
+from django.template.loader import render_to_string
+from django.template import Context, Template
 
-from oscar.core.loading import get_class, get_classes, get_model
+from oscar.core import ajax
+from oscar.core.loading import get_class
 
 from .models import api_modules_pool
 from .packers import Packer
-from .exceptions import ( OriginCityNotFoundError, 
-                          CityNotFoundError, 
-                          ApiOfflineError, 
-                          TooManyFoundError, 
-                          CalculationError)
+from .exceptions import (OriginCityNotFoundError,
+                         CityNotFoundError,
+                         ApiOfflineError,
+                         TooManyFoundError,
+                         CalculationError)
 
 from .checkout.session import CheckoutSessionMixin
-#CheckoutSessionMixin = get_class('checkout.session', 'CheckoutSessionMixin')
+
 Repository = get_class('shipping.repository', 'Repository')
 Scale = get_class('shipping.scales', 'Scale')
+
+
+# this is a workaround for currency tag which can be overloaded in the project
+# but we cannot use get_class for that yet
+def currency(value):
+    return Template('{% load currency_filters %}{{val|currency}}').render(Context({'val': value}))
+
 
 class CityLookupView(CheckoutSessionMixin, View):
     """JSON lookup view for objects retrieved via REST API.
@@ -31,30 +38,28 @@ class CityLookupView(CheckoutSessionMixin, View):
     """
     def filter(self, data, predicate=lambda k, v: True):
         """
-            Attemp to mimic django's queryset.filter() for simple lists
+            Attempt to mimic django's queryset.filter() for simple lists
             proudly stolen from http://stackoverflow.com/a/1215039
             Usage:
                 list(self.filter(test_data, lambda k, v: k == "key1" and v == "value1"))
         """
         for d in data:
-             for k, v in d.items():
-                   if predicate(k, v):
-                        yield d
+            for k, v in d.items():
+                if predicate(k, v):
+                    yield d
     
     def get_queryset(self):
         """ Return normalized queryset-like list of dicts
             { 'id' : <city code>, 'branch' : <branch title>, 'text': <city title> }
         """
-        n_qs = []
         # Skip all not api-based methods
         if not hasattr(self.method, 'api_type'):
             return []
         
         self.facade = api_modules_pool[self.method.api_type].\
-                    ShippingFacade(self.method.api_user, self.method.api_key)
+            ShippingFacade(self.method.api_user, self.method.api_key)
         return self.facade.get_queryset()
          
-
     def format_object(self, qs):
         """ Prepare data for select2 option list.
             Should return smth like 
@@ -70,7 +75,7 @@ class CityLookupView(CheckoutSessionMixin, View):
         return self.filter(qs, lambda k, v: k == "id" and v in value.split(','))
 
     def lookup_filter(self, qs, term):
-        return self.filter(qs, lambda k,v: k == "text" and term.lower() in v.lower() )
+        return self.filter(qs, lambda k, v: k == "text" and term.lower() in v.lower())
 
     def paginate(self, qs, page, page_limit):
         total = len(qs)
@@ -113,6 +118,7 @@ class CityLookupView(CheckoutSessionMixin, View):
             'more': more,
         }), content_type='application/json')
         
+
 class ShippingDetailsView(CheckoutSessionMixin, View):
     """
     Returns rendered detailed shipping charge form.
@@ -122,23 +128,37 @@ class ShippingDetailsView(CheckoutSessionMixin, View):
     # TODO: replace static field with get_template() 
     # method for easier customising
     template = "oscar_shipping/partials/details_form.html"
+
     def get_args(self):
         GET = self.request.GET
         return (GET.get('from', None),
                 GET.get('to', None))
 
+    def json_response(self, ctx, flash_messages):
+        payload = {
+            'messages': flash_messages.as_dict(),
+            'content_html': render_to_string(self.template, ctx),}
+        if 'charge' in ctx:
+            payload['charge'] = currency(ctx['charge'])
+        if 'method_code' in ctx:
+            payload['method_code'] = ctx['method_code']
+
+        return HttpResponse(json.dumps(payload),
+                            content_type="application/json")
+
     def get(self, request, **kwargs):
-        ctx = {}
-        method = None
-        origin = None
-        dest = None
-        self.request = request
+
+        data = ctx = {}
+        msg = method = None
+        # origin = None
+        # dest = None
+        # self.request = request
         ctx['basket'] = request.basket
         method_code = kwargs['slug']
         for m in self.get_available_shipping_methods():
             if m.code == method_code:
                 method = m
-                ctx['method'] = method_code
+                ctx['method_code'] = method_code
         if not method:
             return HttpResponseBadRequest('Bad shipping method code!')
         facade = api_modules_pool[method.api_type].ShippingFacade(method.api_user, method.api_key)
@@ -157,32 +177,33 @@ class ShippingDetailsView(CheckoutSessionMixin, View):
         weight = scale.weigh_basket(request.basket)
         # Should be a list of dicts { 'weight': weight, 'container' : container }
         packs = packer.pack_basket(request.basket)  
-        
-        options = []
-        
+        flash_messages = ajax.FlashMessages()
+
         try:
             charges = facade.get_charges(weight, packs, fromID, toID)
         except ApiOfflineError as e:
-            messages.error(request, _('Oops. API is offline right now. Sorry.'))
-            return render(request, 
-                          self.template, 
-                          { 'errors' : _('API is offline right now. Sorry. (%s)' % e.messages )} )
+            msg = _('API is offline right now. Sorry. (%s)' % e)
+            ctx['errors'] = msg
         except CalculationError as e:
-            return render(request, 
-                          self.template, 
-                          { 'errors' : _('Calculator said: %s' % e.errors )} )
+            msg = _('Calculator said: %s' % e.errors)
+            ctx['errors'] = msg
         else:
-            charge, messages, errors, extra_form = facade.parse_results(charges, 
-                                                                        origin=origin,
-                                                                        dest=dest,
-                                                                        weight=weight,
-                                                                        packs=packs)
-            if extra_form and not messages:
+            charge, api_messages, errors, extra_form = facade.parse_results(charges,
+                                                                            origin=origin,
+                                                                            dest=dest,
+                                                                            weight=weight,
+                                                                            packs=packs)
+            if extra_form and not api_messages:
                 ctx['form'] = extra_form 
             else:
                 ctx['charge'] = charge
-                ctx['messages'] = messages
-                ctx['errors'] = errors
-            return render(request, 
-                              self.template, 
-                              ctx, content_type="text/html" )
+                ctx['messages'] = api_messages
+                ctx['errors'] = msg = errors
+
+        if request.is_ajax():
+            if msg:
+                flash_messages.error(msg)
+            return self.json_response(ctx, flash_messages)
+        else:
+            messages.error(request, msg)
+            return render(request, self.template, ctx, content_type="text/html")

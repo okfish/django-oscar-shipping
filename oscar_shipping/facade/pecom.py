@@ -1,12 +1,13 @@
-import json
 import itertools
 
 from decimal import Decimal as D
 
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
+from django.template.loader import render_to_string
 from django.utils.translation import ugettext_lazy as _
-from django.utils.html import format_html_join
+
+from django.conf import settings
 
 from pecomsdk import pecom
 
@@ -20,12 +21,12 @@ from ..exceptions import ( OriginCityNotFoundError,
 
 PECOM_CALC_OPTIONS = {}
 
-PECOM_TRANSPORT_TYPES = { 1 : _('Auto'),
-                          2 : _('Avia'),
-                          }
+PECOM_TRANSPORT_TYPES = {1: _('Auto'),
+                         2: _('Avia'),
+                         }
 
-origin_code = {}
-precision = D('0.0000')
+weight_precision = getattr(settings, 'OSCAR_SHIPPING_WEIGHT_PRECISION', D('0.000')) 
+
 
 def to_int(val):
     # TODO: make it smarter
@@ -35,14 +36,17 @@ def to_int(val):
         return False
     return casted
 
+
 class ShippingFacade(AbstractShippingFacade):
     name = 'pecom'
+    messages_template = "oscar_shipping/partials/pecom_messages.html"
+    
     def __init__(self, api_user=None, api_key=None):
         if api_user is not None and api_key is not None:
             self.api_user, self.api_key = api_user, api_key
             self.api = pecom.PecomCabinet(api_user, api_key)
         else:
-             raise ImproperlyConfigured("No api credits specified for the shipping method 'pecom'")
+            raise ImproperlyConfigured("No api credits specified for the shipping method 'pecom'")
 
     def validate_code(self, code):
         """
@@ -81,6 +85,8 @@ class ShippingFacade(AbstractShippingFacade):
         return None
     
     def get_charge(self, origin, dest, packs, options=None):
+        res = [] 
+        errors = None
         if not options:
             options = PECOM_CALC_OPTIONS
             
@@ -90,22 +96,25 @@ class ShippingFacade(AbstractShippingFacade):
         for pack in packs:
             options['Cargos'].append({"length": float(pack['container'].lenght), 
                                       "width": float(pack['container'].width), 
-                                      "height":float(pack['container'].height),
+                                      "height": float(pack['container'].height),
                                       "volume": float(pack['container'].volume), 
                                       "maxSize": 3.2,
                                       "isHP": False, 
                                       "sealingPositionsCount": 0, 
-                                      "weight" : float(pack['weight']),
+                                      "weight": float(pack['weight']),
                                       "overSize": False
                                       })
         
         res, errors = self.api.calculate(options)
+        # FIXME: if no result has been returned there should be an issue like
+        # 'NoneType' object does not support item assignment
+        # errors: PecomCabinetException(error(6, "Couldn't resolve host 'kabinet.pecom.ru'"),)
         res['senderCityId'] = origin
         res['receiverCityId'] = dest
         return res, errors
 
     def get_charges(self, weight, packs, origin, dest):
-        origin_code = dest_code = None # origin and destination city codes
+        origin_code = dest_code = None  # origin and destination city codes
         calc_result = err = None
         city = ''
         
@@ -117,7 +126,7 @@ class ShippingFacade(AbstractShippingFacade):
 
         if err:
             return err
-        elif 'hasError' in calc_result.keys() :
+        elif 'hasError' in calc_result.keys():
             if calc_result['hasError']:
                 raise CalculationError("%s(%s)" % (city, dest_code), 
                                        calc_result['errorMessage'])
@@ -127,7 +136,7 @@ class ShippingFacade(AbstractShippingFacade):
             else:   
                 raise CalculationError(city, "Strange. No error found"
                                              "but no result present. DEBUG: %s" % calc_result)
-        elif 'error' in calc_result.keys() :
+        elif 'error' in calc_result.keys():
             if calc_result['error']:
                 raise CalculationError(city, "%s (%s)" % (calc_result['error']['title'],
                                                           calc_result['error']['message']))
@@ -148,17 +157,16 @@ class ShippingFacade(AbstractShippingFacade):
         choices = []
 
         if 'charges' in kwargs.keys():
-            charges =  kwargs.pop('charges')
+            charges = kwargs.pop('charges')
             options = []
             for ch in charges['transfers']:
                 opt = {}
                 if not ch['hasError']:
-                    opt = {'id' : ch['transportingType'],
-                       'name' : "%s" % unicode(facade.get_transport_name(ch['transportingType'])), 
-                       'cost': ch['costTotal'], 
-                       #'errors' : '',
-                       'services' : ch['services'], 
-                       }
+                    opt = {'id': ch['transportingType'],
+                           'name': "%s" % unicode(self.get_transport_name(ch['transportingType'])),
+                           'cost': ch['costTotal'],
+                           'services': ch['services'],
+                           }
                     options.append(opt)
             kwargs['options'] = options
     
@@ -170,9 +178,9 @@ class ShippingFacade(AbstractShippingFacade):
         if 'origin' in kwargs.keys():
             origin_code = self.get_cached_origin_code(kwargs.pop('origin'))
             if not 'initial' in kwargs.keys():
-                kwargs['initial'] = { 'senderCityId': origin_code }
+                kwargs['initial'] = {'senderCityId': origin_code}
             else:
-                kwargs['initial'].update({ 'senderCityId': origin_code })  
+                kwargs['initial'].update({'senderCityId': origin_code})
         # Return simple calculator form if no choices given: 
         # assuming entered city not found in branches 
         try:
@@ -199,7 +207,7 @@ class ShippingFacade(AbstractShippingFacade):
             dest = dest.city
         weight = kwargs.get('weight', 1)
         packs = kwargs.get('packs', [])
-        options = kwargs.get('options', False)
+        options = kwargs.get('options', {})
         
         if options:
             if 'hasError' in results.keys() and not results['hasError']:
@@ -213,49 +221,45 @@ class ShippingFacade(AbstractShippingFacade):
                                                      options['receiverCityId']), 
                                        results['errorMessage'])
         
-        if results is not None and len(results['transfers'])>0:
+        if results is not None and len(results['transfers']) > 0:
             origin_code = results['senderCityId']
             dest_code = results['receiverCityId']
             
-            if len(results['transfers'])>0:
+            if len(results['transfers']) > 0:
                 options = []
                 for ch in results['transfers']:
                     opt = {}
                     if not ch['hasError']:
-                        opt = {'id' : ch['transportingType'],
-                           'name' : "%s" % unicode(self.get_transport_name(ch['transportingType'])), 
-                           'cost': ch['costTotal'], 
-                           #'errors' : '',
-                           'services' : ch['services'], 
-                           }
+                        opt = {'id': ch['transportingType'],
+                               'name': "%s" % unicode(self.get_transport_name(ch['transportingType'])),
+                               'cost': ch['costTotal'],
+                               'services': ch['services'],
+                               }
                         options.append(opt)
                     else:
                         errors += ch['errorMessage']
                     
-                if len(options)>1:
+                if len(options) > 1:
                     extra_form = self.get_extra_form(options=options, 
                                                      full=True,
-                                                     initial={ 'senderCityId': origin_code,
-                                                               'receiverCityId': dest_code,
+                                                     initial={'senderCityId': origin_code,
+                                                              'receiverCityId': dest_code,
                                                               })
                 else:
                     tr_code = results['transfers'][0]['transportingType']
                     charge = D(results['transfers'][0]['costTotal'])
-                    messages = u"""Ship by: %s from %s to %s. Brutto: %s kg. 
-                                   Packs: <ul>%s</ul> """ % (
-                                 self.get_transport_name(tr_code),
-                                 origin, 
-                                 dest, 
-                                 weight, 
-                                 format_html_join('\n', 
-                                 u"<li>{0} ({1}kg , {2}m<sup>3</sup>)</li>", 
-                                 ((p['container'].name, 
-                                   p['weight'], 
-                                   D(p['container'].volume).\
-                                    quantize(precision)) for p in packs)))
-                    extra_form = self.get_extra_form(initial={ 'senderCityId': origin_code,
-                                                               'receiverCityId': dest_code,
-                                                               'transportingType': tr_code,
+                    services = results['transfers'][0]['services']
+                    msg_ctx = {'transport': self.get_transport_name(tr_code),
+                               'services': services,
+                               'origin': origin,
+                               'destination':  dest,
+                               'total_weight': D(weight).quantize(weight_precision),
+                               'packs': packs,
+                               }
+                    messages = render_to_string(self.messages_template, msg_ctx)
+                    extra_form = self.get_extra_form(initial={'senderCityId': origin_code,
+                                                              'receiverCityId': dest_code,
+                                                              'transportingType': tr_code,
                                                               })
 
         else:
@@ -278,18 +282,18 @@ class ShippingFacade(AbstractShippingFacade):
         for item in qs:
             branch_title = item['title']
             branch_id = item['bitrixId']
-            n_qs.append({'id' : branch_id,
-                             'branch' : branch_title,
-                             'text' : branch_title,
-                                      })
+            n_qs.append({'id': branch_id,
+                         'branch': branch_title,
+                         'text': branch_title,
+                         })
             for c in item['cities']:
                 city_id = c.get('bitrixId', None)
-                # Retreive only cities with ID
+                # Retrieve only cities with ID
                 if city_id:
-                    n_qs.append({'id' : city_id,
-                             'branch' : branch_title,
-                             'text' : c['title'],
-                                      })
+                    n_qs.append({'id': city_id,
+                                 'branch': branch_title,
+                                 'text': c['title'],
+                                 })
         return n_qs
     
     def format_objects(self, qs):
@@ -312,7 +316,7 @@ class ShippingFacade(AbstractShippingFacade):
             # Remove unnec data
             for c in chld:
                 del_key(c, 'branch')
-            res.append({'text' : _("Branch: %s") % k, 
-                        'children' : chld,
-                    })
+            res.append({'text': _("Branch: %s") % k,
+                        'children': chld,
+                        })
         return res

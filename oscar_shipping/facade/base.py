@@ -2,25 +2,35 @@ import json
 
 from decimal import Decimal as D
 
+from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import ugettext_lazy as _
 
-from ..exceptions import ( OriginCityNotFoundError, 
-                           CityNotFoundError, 
-                           ApiOfflineError, 
-                           TooManyFoundError,
-                           CalculationError )
+from ..exceptions import (OriginCityNotFoundError,
+                          CityNotFoundError,
+                          ApiOfflineError,
+                          TooManyFoundError,
+                          CalculationError)
 
 # local cache
 origin_code = {}
+
+# this is workaround for that cases when city name was filled in the shipping address form
+# via third-party plugins and APIs, such as KLADR-API or Dadata
+# and being prefixed with abbreviated settlement type
+# that prefix usually separated by dot-space symbols and we should strip it out to make search over city codes
+# So put this setting implicitly if you want enable this feature
+CITY_PREFIX_SEPARATOR = getattr(settings, 'OSCAR_CITY_PREFIX_SEPARATOR', None)
+
 
 class AbstractShippingFacade(object):
     
     # instantiated API class from corresponding package
     # should be initiated in __init__
     api = None 
-    
+    name = ''
+
     def get_cached_origin_code(self, origin):
         code = None
         cache_key = ':'.join([self.name, origin])
@@ -32,13 +42,13 @@ class AbstractShippingFacade(object):
             return code
         else:
             cities, error = self.api.findbytitle(origin)
-            if not error and len(cities)>0:
+            if not error and len(cities) > 0:
                 # WARNING! The only first found code used as origin
                 origin_code[cache_key] = cities[0][0]
                 return origin_code[cache_key]
             else:
                 raise ImproperlyConfigured("It seems like origin point '%s'"
-                                           "coudn't be validated for the method. Errors: %s" % (origin, error))  
+                                           "could'nt be validated for the method. Errors: %s" % (origin, error))
 
     def get_cached_codes(self, city):
         errors = False
@@ -46,7 +56,7 @@ class AbstractShippingFacade(object):
         res = []
         cache_key = ':'.join([self.name, city])
         
-        res = cache.get(cache_key) # should returns list of tuples like facade do but as json
+        res = cache.get(cache_key)  # should returns list of tuples like facade do but as json
         if not res:
             res, errors = self.api.findbytitle(city)
             if not errors:
@@ -62,6 +72,15 @@ class AbstractShippingFacade(object):
             errors = res
         
         return codes, errors
+
+    def clean_city_name(self, city):
+        if CITY_PREFIX_SEPARATOR:
+            try:
+                # take all after separator
+                city = city.split(CITY_PREFIX_SEPARATOR, 1)[1]
+            except IndexError:
+                pass
+        return city
 
     def get_city_codes(self, origin, dest):
         """
@@ -82,7 +101,7 @@ class AbstractShippingFacade(object):
             region = dest.state        
             if not city:
                 raise CityNotFoundError('city_not_set')
-            dest_codes, errors = self.get_cached_codes(city)
+            dest_codes, errors = self.get_cached_codes(self.clean_city_name(city))
         
         if not dest_codes:
             raise CityNotFoundError(city or dest, errors)
@@ -94,8 +113,6 @@ class AbstractShippingFacade(object):
     def get_all_branches(self):
         cache_key = "%s_branches" % self.name
         errors = False
-        res = []
-        
         res = cache.get(cache_key)
         if not res:
             res, errors = self.api.get_branches()
@@ -110,10 +127,10 @@ class AbstractShippingFacade(object):
 
     def get_by_code(self, code):
         """
-            Returns False if code is not valid PEC city code,
-            if not, returns code casted to int
-             Subclasses should implement it.
-            
+            Returns False if code is not valid API city code,
+            if not, returns code casted to int.
+
+            Subclasses should implement it.
         """
         raise NotImplementedError
     

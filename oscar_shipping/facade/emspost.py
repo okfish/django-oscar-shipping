@@ -5,6 +5,7 @@ from decimal import Decimal as D
 
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
+from django.template.loader import render_to_string
 from django.utils.translation import ugettext_lazy as _
 from django.utils.html import format_html_join
 
@@ -32,6 +33,7 @@ precision = D('0.0000')
 
 class ShippingFacade(AbstractShippingFacade):
     name = 'emspost'
+    messages_template = "oscar_shipping/partials/emspost_messages.html"
     
     def __init__(self, api_user=None, api_key=None):
         self.api = emspost.EmsAPI()
@@ -167,21 +169,19 @@ class ShippingFacade(AbstractShippingFacade):
             dest_code = results['receiverCityId']
             charge = D(results['price'])
 
-            messages = u"""From %s to %s. Brutto: %s kg.
-                        Packs: <ul>%s</ul>\n""" % (origin, 
-                                                 dest, 
-                                                 weight, 
-                                                 format_html_join('\n', 
-                                                 u"<li>{0} ({1}kg , {2}m<sup>3</sup>)</li>", 
-                                                 ((p['container'].name, 
-                                                   p['weight'], 
-                                                   D(p['container'].volume).\
-                                                    quantize(precision)) for p in packs)))
+            msg_ctx = {'origin' : origin,
+                       'destination' :  dest,
+                       'total_weight' : D(weight).quantize(precision),
+                       'packs' : packs,
+                       }
+
             extra_form = self.get_extra_form(initial={'senderCityId': origin_code,
                                                       'receiverCityId': dest_code, })
             if 'term' in results.keys():
-                term = (results['term']['min'], results['term']['max'])
-                messages += u"Delivery time: %s to %s days." % (term[0], term[1])
+                msg_ctx['time_min'], msg_ctx['time_max'] = (results['term']['min'], 
+                                                            results['term']['max'])
+                
+            messages = render_to_string(self.messages_template, msg_ctx)
         else:
             errors += "Errors during facade.get_charges() method %s" % results
         return charge, messages, errors, extra_form

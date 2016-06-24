@@ -1,0 +1,9 @@
+{% load i18n %}
+{% load currency_filters %}
+
+{{ name }}: <b><i class="shipping-charge">{{ cost|currency }}</i></b><br> {% trans "including:" %} <br>
+<ul>
+	{% for s in services %}
+		<li>{{ s.info }} <i>{{ s.cost|currency }}</i> {{ s.serviceType }} ({{ s.senderCity }}) </li>
+	{% endfor %}
+</ul>

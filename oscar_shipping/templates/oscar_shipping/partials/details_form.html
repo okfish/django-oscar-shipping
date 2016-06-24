@@ -14,7 +14,7 @@
     </div>
 {% endif %}
 {% if charge %}
- <div class="shipping-charge-{{ method }}">
+ <div class="shipping-charge-{{ method_code }}">
         {{ charge|currency:basket.currency }}
     </div>
 {% endif %}

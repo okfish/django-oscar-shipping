@@ -36,6 +36,7 @@ htmlcov
 .project
 .pydevproject
 .settings
+.idea
 
 # Complexity
 output/*.html
