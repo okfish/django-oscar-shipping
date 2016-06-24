@@ -29,16 +29,21 @@
                                 {{ field.label|safe }}{% if field.field.required %} <span>*</span>{% endif %}
                                 {{ field }}
                             </label>
-                            {% elif field.widget_type == 'RadioSelect' %}
+                        {% elif field.widget_type == 'RadioSelect' or field.widget_type == 'PecomCityDetails' %}
                             {% for radio in field %}
 								    <label for="{{ radio.id_for_label }}">
 								    	<span class="radio">{{ radio.tag }}</span>
 								        {{ radio.choice_label|safe }}
-								        
+								        {% if field.widget_type == 'PecomCityDetails' %}
+                                            <div class="lookup-result"></div>
+                                        {% endif %}
 								    </label>
 								{% endfor %}
                         {% else %}
                             {{ field }}
+                        {% endif %}
+                        {% if field.widget_type == 'PecomCitySelect' %}
+                        <div class="lookup-result"></div>
                         {% endif %}
                     {% endblock %}
 
