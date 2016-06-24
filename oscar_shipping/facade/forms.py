@@ -67,7 +67,7 @@ class PecomCalcForm(BasePecomForm):
             self.fields['transportingType'] = forms.ChoiceField(label=_("Type of transportation"),
                                                                 help_text = _("Please choose the transportation type"),
                                                                 choices=opts, 
-                                                                widget=RadioSelect,
+                                                                widget=PecomCityDetails,
                                                                 required=True)
 
 class EmsCalcForm(forms.Form):
@@ -103,7 +103,7 @@ class EmsCalcForm(forms.Form):
             # choose between found cities
             self.fields['receiverCityId'] = forms.ChoiceField(label=_("Destination city"),
                                                               choices=choices, 
-                                                              widget=PecomCityDetails(attrs={'class' : 'select2 city-selector',
+                                                              widget=PecomCityDetails(attrs={'class' : 'city-selector',
                                                                                         'data-lookup-url' : details_url,
                                                                                         }))
             
