@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2016-06-21 23:13+0300\n"
+"POT-Creation-Date: 2016-08-13 03:53+0300\n"
 "PO-Revision-Date: 2016-06-06 20:53+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -74,7 +74,7 @@ msgstr "Самовывоз"
 
 #: methods.py:20
 msgid "Customers can pick up goods in the central store"
-msgstr "Клиенты могут забрать товар самовывозом"
+msgstr "Клиент сам забирает товар"
 
 #: models.py:34
 msgid "PEC API ver. 1.0"
@@ -157,7 +157,6 @@ msgid "ERROR! There is no shipping address for charge calculation!\n"
 msgstr "Ошибка! Отсутствует адрес для расчета стоимости! \n"
 
 #: models.py:169
-#, python-brace-format
 msgid ""
 "Approximated shipping price\n"
 "                                for {weight} kg from {origin} \n"
@@ -212,7 +211,6 @@ msgstr ""
 "                                    "
 
 #: models.py:229
-#, python-brace-format
 msgid ""
 "Cant find destination city '{title}' \n"
 "                                      to calculate charge. \n"
@@ -391,19 +389,18 @@ msgstr ""
 msgid "including:"
 msgstr "включая:"
 
-#: views.py:162
-msgid "Oops. API is offline right now. Sorry."
-msgstr "УПС. Прямо сейчас API в оффлайне. Извините."
-
-#: views.py:165
+#: views.py:185
 #, python-format
 msgid "API is offline right now. Sorry. (%s)"
 msgstr "API в оффлайне. Извините. (%s)"
 
-#: views.py:169
+#: views.py:188
 #, python-format
 msgid "Calculator said: %s"
 msgstr "Сообщение калькулятора: %s"
+
+#~ msgid "Oops. API is offline right now. Sorry."
+#~ msgstr "УПС. Прямо сейчас API в оффлайне. Извините."
 
 #~ msgid "Your submitted shipping method is not permitted"
 #~ msgstr "Выбранный способ доставки недоступен"
