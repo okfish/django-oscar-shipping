@@ -5,7 +5,6 @@ import importlib
 
 from django.db import models
 from django.conf import settings
-from django.contrib import messages
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django.core.validators import MinValueValidator
@@ -36,6 +35,8 @@ API_AVAILABLE = {'pecom': _('PEC API ver. 1.0'),
                  'dhl': _('DHL API (not ready yet)'),
                  'usps': _('USPS API (not ready yet)'),
                  }
+
+CHANGE_DESTINATION = getattr(settings, 'OSCAR_SHIPPING_CHANGE_DESTINATION', True)
 
 
 def get_api_modules():
@@ -72,7 +73,7 @@ class AvailableCompanyManager(ShippingCompanyManager):
     
     def for_address(self, addr):
         """
-        Prepopulate destination field with the given address 
+        Pre-populate destination field with the given address
         for charge calculating
         """
         methods = self.get_queryset()
@@ -87,9 +88,9 @@ class ShippingCompany(AbstractWeightBased):
     size_attributes = ('width', 'height', 'length')
 
     destination = None  # not stored field used for charge calculation
-    
-    errors = ''    # There is an issue with iterables and arrays as class properties and it scopes
-    messages = ''  # for class and instance so just a one string messages per calculate() method call
+
+    errors = None
+    messages = None
 
     ONLINE, OFFLINE, DISABLED = 'online', 'offline', 'disabled'
     API_STATUS_CHOICES = (
@@ -137,6 +138,8 @@ class ShippingCompany(AbstractWeightBased):
 
     def __init__(self, *args, **kwargs):
         super(ShippingCompany, self).__init__(*args, **kwargs)
+        self.messages = []
+        self.errors = []
         if self.api_type:
             self.facade = api_modules_pool[self.api_type].ShippingFacade(self.api_user, self.api_key)
 
@@ -145,11 +148,11 @@ class ShippingCompany(AbstractWeightBased):
         return self.payment_type == self.PREPAID
 
     def calculate(self, basket, options=None):
-        
+        # TODO: move code to smth like ShippingCalculator class
         results = []
         charge = D('0.0')
-        self.messages = ''
-        self.errors = ''
+        self.messages = []
+        self.errors = []
         # Note, when weighing the basket, we don't check whether the item
         # requires shipping or not.  It is assumed that if something has a
         # weight, then it requires shipping.
@@ -159,18 +162,18 @@ class ShippingCompany(AbstractWeightBased):
                         attribute_codes=self.size_attributes,
                         weight_code=self.weight_attribute, 
                         default_weight=self.default_weight)
-        weight = scale.weigh_basket(basket)
+        weight = scale.weigh_basket(basket).quantize(weight_precision)
         # Should be a list of dicts { 'weight': weight, 'container' : container }
         packs = packer.pack_basket(basket)  
         facade = self.facade
         if not self.destination: 
-            self.errors += _("ERROR! There is no shipping address for charge calculation!\n")
+            self.errors.append(_("ERROR! There is no shipping address for charge calculation!\n"))
         else:
-            self.messages += _(u"""Approximated shipping price
+            self.messages.append(_(u"""Approximated shipping price
                                 for {weight} kg from {origin} 
                                 to {destination}\n""").format(weight=weight, 
                                                               origin=self.origin,
-                                                              destination=self.destination.city)
+                                                              destination=self.destination.city))
             
             # Assuming cases like http protocol suggests:
             # e=200  - OK. Result contains charge value and extra info such as Branch code, etc
@@ -193,14 +196,18 @@ class ShippingCompany(AbstractWeightBased):
                                                         options['receiverCityId'],
                                                         packs)
                 except CalculationError as e:
-                    self.errors = "Post-calculation error: %s" % e.errors
-                    self.messages = e.title
+                    self.errors.append("Post-calculation error: %s" % e.errors)
+                    self.messages.append(e.title)
                 except:
                     raise
                 if not errors:
-                    (charge, self.messages, 
-                     self.errors, self.extra_form) = facade.parse_results(results, 
-                                                                          options=options)
+                    (charge, msg,
+                     err, self.extra_form) = facade.parse_results(results,
+                                                                  options=options)
+                    if msg:
+                        self.messages.append(msg)
+                    if err:
+                        self.errors.append(err)
                 else:
                     raise CalculationError("%s -> %s" % (options['senderCityId'], 
                                                          options['receiverCityId']), 
@@ -209,56 +216,64 @@ class ShippingCompany(AbstractWeightBased):
                 try:          
                     results = facade.get_charges(weight, packs, self.origin, self.destination)
                 except ApiOfflineError:
-                    self.errors += _(u"""%s API is offline. Cant 
-                                        calculate anything. Sorry!""") % self.name
-                    self.messages = _(u"Please, choose another shipping method!")
+                    self.errors.append(_(u"""%s API is offline. Can't
+                                         calculate anything. Sorry!""") % self.name)
+                    self.messages.append(_(u"Please, choose another shipping method!"))
                 except OriginCityNotFoundError as e: 
                     # Paranoid mode as ImproperlyConfigured should be raised by facade
-                    self.errors += _(u"""City of origin '%s' not found 
+                    self.errors.append(_(u"""City of origin '%s' not found
                                       in the shipping company 
-                                      postcodes to calculate charge.""") % e.title
-                    self.messages = _(u"""It seems like we couldnt find code 
+                                      postcodes to calculate charge.""") % e.title)
+                    self.messages.append(_(u"""It seems like we couldn't find code
                                         for the city of origin (%s).
                                         Please, select it manually, choose another 
                                         address or another shipping method.
-                                    """) % e.title
+                                    """) % e.title)
                 except ImproperlyConfigured as e:  # upraised error handling
-                    self.errors += "ImproperlyConfigured error (%s)" % e.message
-                    self.messages = "Please, select another shipping method or call site administrator!"
+                    self.errors.append("ImproperlyConfigured error (%s)" % e.message)
+                    self.messages.append("Please, select another shipping method or call site administrator!")
                 except CityNotFoundError as e: 
-                    self.errors += _(u"""Cant find destination city '{title}' 
+                    self.errors.append(_(u"""Can't find destination city '{title}'
                                       to calculate charge. 
-                                      Errors: {errors}""").format(title=e.title, errors=e.errors)
-                    self.messages = _(u"""It seems like we cant find code 
+                                      Errors: {errors}""").format(title=e.title, errors=e.errors))
+                    self.messages.append(_(u"""It seems like we can't find code
                                         for the city of destination (%s).
-                                        Please, select it manually, choose 
+                                        Please, choose
                                         another address or another shipping method.
-                                    """) % e.title
-                    self.extra_form = facade.get_extra_form(origin=self.origin, 
-                                                            lookup_url=lookup_url,
-                                                            details_url=details_url)
+                                    """) % e.title)
+                    if CHANGE_DESTINATION:
+                        self.messages.append(_("Also, you can choose city of destination manually"))
+                        self.extra_form = facade.get_extra_form(origin=self.origin,
+                                                                lookup_url=lookup_url,
+                                                                details_url=details_url)
                 except TooManyFoundError as e:
-                    self.errors += _(u"Found too many destinations for given city (%s)") % e.title
-                    self.messages = _("Please refine your shipping address")
-                    self.extra_form = facade.get_extra_form(origin=self.origin, 
-                                                            choices=e.results,
-                                                            details_url=details_url)
+                    self.errors.append(_(u"Found too many destinations for given city (%s)") % e.title)
+                    if CHANGE_DESTINATION:
+                        self.messages.append(_("Please refine your shipping address"))
+                        self.extra_form = facade.get_extra_form(origin=self.origin,
+                                                                choices=e.results,
+                                                                details_url=details_url)
                 except CalculationError as e:
-                    self.errors += _(u"""Error occured during charge 
-                                        calculation for given city (%s)""") % e.title
-                    self.messages = _(u"API error was: %s") % e.errors
-                    self.extra_form = facade.get_extra_form(origin=self.origin,
-                                                            details_url=details_url,
-                                                            lookup_url=lookup_url)
+                    self.errors.append(_(u"""Error occurred during charge
+                                        calculation for given city (%s)""") % e.title)
+                    self.messages.append(_(u"API error was: %s") % e.errors)
+                    if CHANGE_DESTINATION:
+                        self.extra_form = facade.get_extra_form(origin=self.origin,
+                                                                details_url=details_url,
+                                                                lookup_url=lookup_url)
                 except:
                     raise
                 else:
-                    (charge, self.messages, 
-                     self.errors, self.extra_form) = facade.parse_results(results, 
-                                                                          origin=self.origin,
-                                                                          dest=self.destination,
-                                                                          weight=weight,
-                                                                          packs=packs)
+                    (charge, msg,
+                     err, self.extra_form) = facade.parse_results(results,
+                                                                  origin=self.origin,
+                                                                  dest=self.destination,
+                                                                  weight=weight,
+                                                                  packs=packs)
+                    if msg:
+                        self.messages.append(msg)
+                    if err:
+                        self.errors.append(err)
         
         # Zero tax is assumed...
         return prices.Price(
