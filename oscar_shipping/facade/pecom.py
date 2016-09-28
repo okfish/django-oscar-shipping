@@ -94,7 +94,7 @@ class ShippingFacade(AbstractShippingFacade):
         options['receiverCityId'] = dest
         options['Cargos'] = []
         for pack in packs:
-            options['Cargos'].append({"length": float(pack['container'].lenght), 
+            options['Cargos'].append({"length": float(pack['container'].length), 
                                       "width": float(pack['container'].width), 
                                       "height": float(pack['container'].height),
                                       "volume": float(pack['container'].volume), 

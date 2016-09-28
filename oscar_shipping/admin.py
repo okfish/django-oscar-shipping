@@ -12,7 +12,7 @@ class ShippingCompanyAdmin(admin.ModelAdmin):
 
 
 class ShippingContainerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'height', 'width', 'lenght', 'max_load')
+    list_display = ('name', 'height', 'width', 'length', 'max_load')
     
 
 
