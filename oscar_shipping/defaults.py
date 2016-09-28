@@ -23,5 +23,14 @@ OSCAR_SHIPPING_DEFAULT_ORIGIN = u'Санкт-Петербург'
 
 OSCAR_SHIPPING_API_ENABLED = ['pecom', 'emspost']
 
+# Workaround for javascripted form fields (such as KLADR) which should be cleaned before, e.g. "г. Москва" -> "Москва"
+OSCAR_CITY_PREFIX_SEPARATOR = '. '
+
+# for black and white lists packed in TextField
+OSCAR_SHIPPING_LIST_SEPARATOR = ';'
+
 # allow users to choose city of destination manually if no code found during calculation
 OSCAR_SHIPPING_CHANGE_DESTINATION = True
+
+# is method available or not if no destination's code found for charge calculation
+OSCAR_SHIPPING_IF_NOT_FOUND = True
