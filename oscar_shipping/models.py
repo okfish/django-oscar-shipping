@@ -74,12 +74,17 @@ class AvailableCompanyManager(ShippingCompanyManager):
     def for_address(self, addr):
         """
         Pre-populate destination field with the given address
-        for charge calculating
+        for charge calculating. Also, checks whether method allowed for this destination or not.
+        :param addr: oscar.apps.address.models.UserAddress or subclassed instance (object must have 'line4' attr)
+        :returns: list of available shipping methods for Repository class
         """
         methods = self.get_queryset()
+        available_methods = []
         for m in methods:
             m.set_destination(addr)
-        return methods
+            if m.destination_allowed is None or m.destination_allowed:
+                available_methods.append(m)
+        return available_methods
 
 
 class ShippingCompany(AbstractWeightBased):
@@ -104,6 +109,8 @@ class ShippingCompany(AbstractWeightBased):
         (PREPAID, _('Order includes shipping charges')),
         (POSTPAID, _('Shipping is paid by buyer'))
     )
+    LIST_SEPARATOR = getattr(settings, 'OSCAR_SHIPPING_LIST_SEPARATOR', ';')
+    SHOW_IF_NOT_FOUND = getattr(settings, 'OSCAR_SHIPPING_IF_NOT_FOUND', True)
 
     api_user = models.CharField(_("API username"), max_length=64, blank=True)
     api_key = models.CharField(_("API key"), max_length=255, blank=True)
@@ -132,7 +139,23 @@ class ShippingCompany(AbstractWeightBased):
                                         verbose_name=_('Containers or boxes'),
                                         help_text=_('Containers or boxes could be used for packing')
                                         )
-    
+
+    destination_whitelist = models.TextField(verbose_name=_('Destination codes whitelist'),
+                                             help_text=_('Method will be available only for this destinations. '
+                                                         'White list have a higher priority, if set, other lists will '
+                                                         'be ignored. '
+                                                         'Type of codes depends on shipping API type. '
+                                                         'Use symbol "%s" to separate values.' % LIST_SEPARATOR),
+                                             blank=True,
+                                             )
+
+    destination_blacklist = models.TextField(verbose_name=_('Destination codes blacklist'),
+                                             help_text=_('Method will be not available for this destinations. '
+                                                         'Type of codes depends on shipping API type. '
+                                                         'Use symbol "%s" to separate values.' % LIST_SEPARATOR),
+                                             blank=True,
+                                             )
+
     objects = ShippingCompanyManager()
     available = AvailableCompanyManager()
 
@@ -146,6 +169,47 @@ class ShippingCompany(AbstractWeightBased):
     @property
     def is_prepaid(self):
         return self.payment_type == self.PREPAID
+
+    @property
+    def destination_allowed(self):
+        # there are three cases possible:
+        # 1. no codes found for city of destination given
+        # 2. found the only code
+        # 3. found some codes (rare but possible)
+        # the last case is most complicated as we need to catch three rabbits again:
+        # 3.1 all of codes are black|white listed
+        # 3.2 none are black|white listed
+        # 3.3 some of codes are listed <--- this case can be controlled via settings or smth else
+        # for the moment we just simply allow to use the method in this situation
+        if not self.destination:
+            return
+        f = self.facade
+        city = self.destination.line4
+        if not city:
+            return
+        dest_codes, errors = f.get_cached_codes(f.clean_city_name(city))
+        if not dest_codes:
+            return self.SHOW_IF_NOT_FOUND
+        flags = []
+        if self.destination_whitelist:
+            for code in dest_codes:
+                flags.append(code in self.destination_whitelist.split(self.LIST_SEPARATOR))
+            if all(flags):
+                return True
+            elif any(flags):
+                return None
+            else:
+                return False
+        flags = []
+        if self.destination_blacklist:
+            for code in dest_codes:
+                flags.append(code in self.destination_blacklist.split(self.LIST_SEPARATOR))
+            if all(flags):
+                return False
+            else:
+                return True
+        else:
+            return True
 
     def calculate(self, basket, options=None):
         # TODO: move code to smth like ShippingCalculator class
@@ -303,8 +367,8 @@ class ShippingContainer(models.Model):
     width = models.DecimalField(
         _("Width, m"), decimal_places=3, max_digits=12,
         validators=[MinValueValidator(D('0.00'))])
-    lenght = models.DecimalField(
-        _("Lenght, m"), decimal_places=3, max_digits=12,
+    length = models.DecimalField(
+        _("Length, m"), decimal_places=3, max_digits=12,
         validators=[MinValueValidator(D('0.00'))])
     max_load = models.DecimalField(
         _("Max loading, kg"), decimal_places=3, max_digits=12,
@@ -315,7 +379,7 @@ class ShippingContainer(models.Model):
     
     @property
     def volume(self):
-        return D(self.height*self.width*self.lenght).quantize(volume_precision)
+        return D(self.height*self.width*self.length).quantize(volume_precision)
     
     class Meta:
         app_label = 'shipping'
