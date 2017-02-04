@@ -74,7 +74,7 @@ msgstr "Самовывоз"
 
 #: methods.py:20
 msgid "Customers can pick up goods in the central store"
-msgstr "Клиенты могут забрать товар самовывозом"
+msgstr "Клиент сам забирает товар"
 
 #: models.py:34
 msgid "PEC API ver. 1.0"
