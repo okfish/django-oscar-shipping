@@ -14,7 +14,7 @@ volume_precision = getattr(settings, 'OSCAR_SHIPPING_VOLUME_PRECISION', D('0.000
 # 0.1m x 0.1m x 0.1m
 DEFAULT_BOX = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_BOX', {'width': float('0.1'),
                                                                'height': float('0.1'),
-                                                               'lenght': float('0.1')})
+                                                               'length': float('0.1')})
 
 # 1 Kg 
 DEFAULT_WEIGHT = getattr(settings, 'OSCAR_SHIPPING_DEFAULT_WEIGHT', 1)
@@ -28,14 +28,14 @@ class Box(object):
     
     height = 0
     width = 0
-    lenght = 0
+    length = 0
 
     def __init__(self, h, w, l):
-        self.height, self.width, self.lenght = h, w, l
+        self.height, self.width, self.length = h, w, l
     
     @property    
     def volume(self):
-        return D(self.height*self.width*self.lenght).quantize(volume_precision)
+        return D(self.height*self.width*self.length).quantize(volume_precision)
 
 
 class Container(Box):
@@ -83,7 +83,7 @@ class Packer(object):
     
     def __init__(self, containers, **kwargs):
         self.containers = containers
-        self.attributes = kwargs.get('attribute_codes', ('width', 'height', 'lenght'))
+        self.attributes = kwargs.get('attribute_codes', ('width', 'height', 'length'))
         self.weight_code = kwargs.get('weight_code', 'weight')
         self.default_weight = kwargs.get('default_weight', DEFAULT_WEIGHT)
 
